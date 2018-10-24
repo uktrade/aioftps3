@@ -15,6 +15,7 @@ RUN \
     pip3 install \
         aioftp==0.12.0
 
+COPY s3pathio.py /usr/lib/python3.6/site-packages/s3pathio.py
 COPY server.py /server.py
 COPY entrypoint.sh /entrypoint.sh
 
