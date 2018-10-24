@@ -21,7 +21,10 @@ def main():
                             keyfile=f'{os.environ["HOME"]}/ssl.key')
 
     loop = asyncio.get_event_loop()
-    server = aioftp.Server(ssl=context, path_io_factory=s3pathio.S3PathIO)
+    server = aioftp.Server(
+        ssl=context,
+        path_io_factory=s3pathio.S3PathIO,
+    )
     loop.run_until_complete(server.start('0.0.0.0', 8021))
 
     try:
