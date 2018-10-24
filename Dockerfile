@@ -1,35 +1,25 @@
 FROM alpine:3.8
 
+ENV \
+    LC_ALL=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LANGUAGE=en_US.UTF-8
+
 RUN \
-    apk add --no-cache --virtual .build-deps \
-        autoconf=2.69-r2 \
-        automake=1.16.1-r0 \
-        bash=4.4.19-r1 \
-        build-base=0.5-r1 \
-        curl-dev=7.61.1-r0 \
-        fuse-dev=2.9.8-r0 \
-        git=2.18.0-r0 \
-        libxml2-dev=2.9.8-r0 && \
     apk add --no-cache \
-        curl=7.61.1-r0 \
-        fuse=2.9.8-r0 \
-        libxml2=2.9.8-r0 \
-        libstdc++=6.4.0-r9 && \
-    git clone --branch v1.84 https://github.com/s3fs-fuse/s3fs-fuse.git && \
-    ( \
-        cd s3fs-fuse && \
-        ./autogen.sh && \
-        ./configure --prefix=/usr && \
-        make && \
-        make install \
-    ) && \
-    rm -r -f s3fs-fuse && \
-    apk del .build-deps
+        openssl=1.0.2p-r0 \
+        python3=3.6.6-r0 \
+        tini=0.18.0-r0 && \
+    python3 -m ensurepip && \
+    pip3 install pip==18.01 && \
+    pip3 install \
+        aioftp==0.12.0
 
-RUN \
-    adduser -S ftps
+COPY server.py /server.py
+COPY entrypoint.sh /entrypoint.sh
 
-COPY entrypoint.sh entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
+CMD ["python3", "server.py"]
 
-# USER ftps
+RUN adduser -S ftps
+USER ftps
