@@ -7,12 +7,12 @@ import asyncio
 import aioftp
 
 
-root = logging.getLogger()
-root.setLevel(logging.DEBUG)
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.DEBUG)
-root.addHandler(handler)
+logger.addHandler(handler)
 
 context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS)
 context.load_cert_chain(f'{os.environ["HOME"]}/ssl.crt', keyfile=f'{os.environ["HOME"]}/ssl.key')
