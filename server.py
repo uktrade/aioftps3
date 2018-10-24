@@ -15,7 +15,7 @@ def main():
     handler.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
-    context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS)
+    context = ssl.SSLContext()
     context.load_cert_chain(f'{os.environ["HOME"]}/ssl.crt',
                             keyfile=f'{os.environ["HOME"]}/ssl.key')
 
