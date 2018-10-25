@@ -31,10 +31,7 @@ def main():
         host=os.environ['AWS_S3_BUCKET_HOST'],
         name=os.environ['AWS_S3_BUCKET_NAME'],
     )
-    docker_nameservers = ['192.168.65.1']
-    dns_resolver = aiohttp.AsyncResolver(loop=loop, nameservers=docker_nameservers)
-    conn = aiohttp.TCPConnector(loop=loop, use_dns_cache=False, resolver=dns_resolver)
-    session = aiohttp.ClientSession(loop=loop, connector=conn)
+    session = aiohttp.ClientSession(loop=loop)
 
     server = aioftp.Server(
         loop=loop,

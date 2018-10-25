@@ -14,7 +14,6 @@ RUN \
     python3 -m ensurepip && \
     pip3 install pip==18.01 && \
     pip3 install \
-        aiodns==1.1.1 \
         aioftp==0.12.0 \
         aiohttp==3.4.4 && \
     apk del .build-deps
