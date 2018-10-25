@@ -187,11 +187,12 @@ async def _list_nodes(session, creds, bucket, key_prefix, delimeter):
                     last_modified_str, '%Y-%m-%dT%H:%M:%S.%fZ')
                 last_modified_since_epoch_seconds = int(
                     (last_modified_datetime - epoch).total_seconds())
+                size = int(_first_child_text(element, f'{namespace}Size'))
                 nodes.append(Node(
                     name=key,
                     type='file',
                     stat=Stat(
-                        st_size=1,
+                        st_size=size,
                         st_mtime=last_modified_since_epoch_seconds,
                         st_ctime=last_modified_since_epoch_seconds,
                         st_nlink=1,
