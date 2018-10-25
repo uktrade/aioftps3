@@ -5,6 +5,7 @@ from datetime import datetime
 import hashlib
 import hmac
 import io
+from pathlib import PurePosixPath
 import urllib
 import xml.etree.ElementTree as ET
 
@@ -12,15 +13,13 @@ from aioftp.pathio import (
     universal_exception,
 )
 
+REG_MODE = 0o10000  # stat.S_IFREG
+DIR_MODE = 0o40000  # stat.S_IFDIR
+
 
 Stat = namedtuple(
     'Stat',
     ['st_size', 'st_mtime', 'st_ctime', 'st_nlink', 'st_mode'],
-)
-
-Node = namedtuple(
-    'Node',
-    ['name', 'type', 'stat'],
 )
 
 AwsCredentials = namedtuple('AwsCredentials', [
@@ -30,6 +29,19 @@ AwsCredentials = namedtuple('AwsCredentials', [
 AwsS3Bucket = namedtuple('AwsS3Bucket', [
     'region', 'host', 'name',
 ])
+
+
+class S3Path(PurePosixPath):
+    ''' The purpose of this class is to be able to integrate with
+    code in aioftp that expects a Path instance, but be able to
+    attach more data that is returned from S3 List Objects which
+    we access from S3PathIO
+    '''
+
+    def __new__(cls, *args, stat):
+        self = super().__new__(cls, *args)
+        self.stat = stat
+        return self
 
 
 def s3_path_io_factory(session, credentials, bucket):
@@ -76,16 +88,28 @@ class S3PathIO():
         self.state = None
 
     @universal_exception
-    async def exists(self, _):
-        return True
+    async def exists(self, path):
+        result = \
+            True if isinstance(path, S3Path) else \
+            True if path == PurePosixPath('.') else \
+            False  # WIP
+        return result
 
     @universal_exception
-    async def is_dir(self, node):
-        return node.type == 'dir'
+    async def is_dir(self, path):
+        result = \
+            True if isinstance(path, S3Path) and path.stat.st_mode & DIR_MODE else \
+            True if path == PurePosixPath('.') else \
+            False  # WIP
+        return result
 
     @universal_exception
-    async def is_file(self, node):
-        return node.type == 'file'
+    async def is_file(self, path):
+        result = \
+            True if isinstance(path, S3Path) and path.stat.st_mode & REG_MODE else \
+            False if path == PurePosixPath('.') else \
+            False  # WIP
+        return result
 
     @universal_exception
     async def mkdir(self, path, *, parents=False, exist_ok=False):
@@ -103,8 +127,8 @@ class S3PathIO():
         return _list(self.session, self.credentials, self.bucket, path)
 
     @universal_exception
-    async def stat(self, node):
-        return node.stat
+    async def stat(self, path):
+        return path.stat
 
     @universal_exception
     async def _open(self, path, mode):
@@ -136,15 +160,15 @@ def _key(_):
 
 
 async def _list(session, creds, bucket, path):
-    for node in await _list_immediate_child_nodes(session, creds, bucket, _key(path)):
-        yield node
+    for child_path in await _list_immediate_child_paths(session, creds, bucket, _key(path)):
+        yield child_path
 
 
-async def _list_immediate_child_nodes(session, creds, bucket, key_prefix):
-    return await _list_nodes(session, creds, bucket, key_prefix, '/')
+async def _list_immediate_child_paths(session, creds, bucket, key_prefix):
+    return await _list_paths(session, creds, bucket, key_prefix, '/')
 
 
-async def _list_nodes(session, creds, bucket, key_prefix, delimeter):
+async def _list_paths(session, creds, bucket, key_prefix, delimeter):
     epoch = datetime.utcfromtimestamp(0)
     common_query = {
         'max-keys': '1000',
@@ -178,7 +202,7 @@ async def _list_nodes(session, creds, bucket, key_prefix, delimeter):
         namespace = '{http://s3.amazonaws.com/doc/2006-03-01/}'
         root = ET.fromstring(body)
         next_token = ''
-        nodes = []
+        paths = []
         for element in root:
             if element.tag == f'{namespace}Contents':
                 key = _first_child_text(element, f'{namespace}Key')
@@ -188,47 +212,40 @@ async def _list_nodes(session, creds, bucket, key_prefix, delimeter):
                 last_modified_since_epoch_seconds = int(
                     (last_modified_datetime - epoch).total_seconds())
                 size = int(_first_child_text(element, f'{namespace}Size'))
-                nodes.append(Node(
-                    name=key,
-                    type='file',
-                    stat=Stat(
-                        st_size=size,
-                        st_mtime=last_modified_since_epoch_seconds,
-                        st_ctime=last_modified_since_epoch_seconds,
-                        st_nlink=1,
-                        st_mode=0o100666,  # stat.S_IFREG | 0o666
-                    )))
+                paths.append(S3Path(key, stat=Stat(
+                    st_size=size,
+                    st_mtime=last_modified_since_epoch_seconds,
+                    st_ctime=last_modified_since_epoch_seconds,
+                    st_nlink=1,
+                    st_mode=REG_MODE,
+                )))
 
             if element.tag == f'{namespace}CommonPrefixes':
                 # Prefixes end in '/', which we strip off
                 key_prefix = _first_child_text(element, f'{namespace}Prefix')[:-1]
-                nodes.append(Node(
-                    name=key_prefix,
-                    type='dir',
-                    stat=Stat(
-                        # Not completely sure what size should be for a directory
-                        st_size=0,
-                        # Can't quite work out an efficient way of working out
-                        # any sort of meaningful modification/creation time for a
-                        # directory
-                        st_mtime=0,
-                        st_ctime=0,
-                        st_nlink=1,
-                        st_mode=0o40777,  # stat.S_IFDIR | 0o777
-                    ),
-                ))
+                paths.append(S3Path(key_prefix, stat=Stat(
+                    # Not completely sure what size should be for a directory
+                    st_size=0,
+                    # Can't quite work out an efficient way of working out
+                    # any sort of meaningful modification/creation time for a
+                    # directory
+                    st_mtime=0,
+                    st_ctime=0,
+                    st_nlink=1,
+                    st_mode=DIR_MODE,
+                )))
 
             if element.tag == f'{namespace}NextContinuationToken':
                 next_token = element.text
 
-        return (next_token, nodes)
+        return (next_token, paths)
 
-    token, nodes = await _list_first_page()
+    token, paths = await _list_first_page()
     while token:
-        token, nodes_page = await _list_later_page(token)
-        nodes.extend(nodes_page)
+        token, paths_page = await _list_later_page(token)
+        paths.extend(paths_page)
 
-    return nodes
+    return paths
 
 
 async def _make_s3_request(session, credentials, bucket,
