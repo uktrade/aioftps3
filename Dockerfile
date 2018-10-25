@@ -1,4 +1,4 @@
-FROM alpine:3.8
+FROM python:3.7.1-alpine3.8
 
 ENV \
     LC_ALL=en_US.UTF-8 \
@@ -8,14 +8,13 @@ ENV \
 RUN \
     apk add --no-cache \
         openssl=1.0.2p-r0 \
-        python3=3.6.6-r0 \
         tini=0.18.0-r0 && \
     python3 -m ensurepip && \
     pip3 install pip==18.01 && \
     pip3 install \
         aioftp==0.12.0
 
-COPY s3pathio.py /usr/lib/python3.6/site-packages/s3pathio.py
+COPY s3pathio.py /usr/local/lib/python3.7/site-packages/s3pathio.py
 COPY server.py /server.py
 COPY entrypoint.sh /entrypoint.sh
 
