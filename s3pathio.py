@@ -130,8 +130,7 @@ class S3PathIO():
     async def stat(self, path):
         return path.stat
 
-    @universal_exception
-    async def _open(self, path, mode):
+    def open(self, path, mode):
         raise NotImplementedError
 
     @universal_exception
