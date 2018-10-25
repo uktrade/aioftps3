@@ -9,10 +9,15 @@ RUN \
     apk add --no-cache \
         openssl=1.0.2p-r0 \
         tini=0.18.0-r0 && \
+    apk add --no-cache --virtual .build-deps \
+        build-base=0.5-r1 && \
     python3 -m ensurepip && \
     pip3 install pip==18.01 && \
     pip3 install \
-        aioftp==0.12.0
+        aiodns==1.1.1 \
+        aioftp==0.12.0 \
+        aiohttp==3.4.4 && \
+    apk del .build-deps
 
 COPY s3pathio.py /usr/local/lib/python3.7/site-packages/s3pathio.py
 COPY server.py /server.py

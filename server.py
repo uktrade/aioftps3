@@ -5,6 +5,7 @@ import sys
 
 import asyncio
 import aioftp
+import aiohttp
 import s3pathio
 
 
@@ -21,9 +22,25 @@ def main():
                             keyfile=f'{os.environ["HOME"]}/ssl.key')
 
     loop = asyncio.get_event_loop()
+    credentials = s3pathio.s3_path_io_secret_access_key_credentials(
+        access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+        secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+    )
+    bucket = s3pathio.s3_path_io_bucket(
+        region=os.environ['AWS_S3_BUCKET_REGION'],
+        host=os.environ['AWS_S3_BUCKET_HOST'],
+        name=os.environ['AWS_S3_BUCKET_NAME'],
+    )
+    docker_nameservers = ['192.168.65.1']
+    dns_resolver = aiohttp.AsyncResolver(loop=loop, nameservers=docker_nameservers)
+    conn = aiohttp.TCPConnector(loop=loop, use_dns_cache=False, resolver=dns_resolver)
+    session = aiohttp.ClientSession(loop=loop, connector=conn)
+
     server = aioftp.Server(
+        loop=loop,
         ssl=context,
-        path_io_factory=s3pathio.S3PathIO,
+        path_io_factory=s3pathio.s3_path_io_factory(
+            session=session, credentials=credentials, bucket=bucket),
         data_ports=range(8022, 8042),
     )
     loop.run_until_complete(server.start('0.0.0.0', 8021))
