@@ -38,6 +38,7 @@ repos:
         - --max-locals=20
         - --max-returns=10
         - --ignore-imports=yes
+        - --disable=arguments-differ
         - --disable=attribute-defined-outside-init
         - --disable=duplicate-code
         - --disable=missing-docstring

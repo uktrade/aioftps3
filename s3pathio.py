@@ -1,3 +1,6 @@
+from collections import (
+    namedtuple,
+)
 import io
 
 from aioftp.pathio import (
@@ -6,19 +9,30 @@ from aioftp.pathio import (
 )
 
 
+Stat = namedtuple(
+    'Stat',
+    ['st_size', 'st_mtime', 'st_ctime', 'st_nlink', 'st_mode'],
+)
+
+Node = namedtuple(
+    'Node',
+    ['name', 'type', 'stat'],
+)
+
+
 class S3PathIO(AbstractPathIO):
 
     @universal_exception
     async def exists(self, path):
-        raise NotImplementedError
+        return True
 
     @universal_exception
-    async def is_dir(self, path):
-        raise NotImplementedError
+    async def is_dir(self, node):
+        return node.type == 'dir'
 
     @universal_exception
-    async def is_file(self, path):
-        raise NotImplementedError
+    async def is_file(self, node):
+        return node.type == 'file'
 
     @universal_exception
     async def mkdir(self, path, *, parents=False, exist_ok=False):
@@ -33,11 +47,11 @@ class S3PathIO(AbstractPathIO):
         raise NotImplementedError
 
     def list(self, path):
-        raise NotImplementedError
+        return _list(path)
 
     @universal_exception
-    async def stat(self, path):
-        raise NotImplementedError
+    async def stat(self, node):
+        return node.stat
 
     @universal_exception
     async def _open(self, path, mode):
@@ -62,3 +76,18 @@ class S3PathIO(AbstractPathIO):
     @universal_exception
     async def rename(self, source, destination):
         raise NotImplementedError
+
+
+async def _list(_):
+    for name in ['dummy_1', 'dummy_2']:
+        yield Node(
+            name=name,
+            type='file',
+            stat=Stat(
+                st_size=1,
+                st_mtime=0,
+                st_ctime=0,
+                st_nlink=1,
+                st_mode=0o100666,
+            ),
+        )

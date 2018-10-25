@@ -24,6 +24,7 @@ def main():
     server = aioftp.Server(
         ssl=context,
         path_io_factory=s3pathio.S3PathIO,
+        data_ports=range(8022, 8042),
     )
     loop.run_until_complete(server.start('0.0.0.0', 8021))
 
