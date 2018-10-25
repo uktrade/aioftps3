@@ -16,6 +16,10 @@ from aioftp.pathio import (
 REG_MODE = 0o10000  # stat.S_IFREG
 DIR_MODE = 0o40000  # stat.S_IFDIR
 
+# The S3 console uses '/' as both the folder separator for
+# navigation, and as the suffix for objects created when
+# you create a folder, so we do exacty the same here
+S3_DIR_SUFFIX = '/'
 
 Stat = namedtuple(
     'Stat',
@@ -89,18 +93,14 @@ class S3PathIO():
 
     @universal_exception
     async def exists(self, path):
-        result = \
-            True if isinstance(path, S3Path) else \
-            True if path == PurePosixPath('.') else \
-            False  # WIP
-        return result
+        return await self.is_file(path) or await self.is_dir(path)
 
     @universal_exception
     async def is_dir(self, path):
         result = \
             True if isinstance(path, S3Path) and path.stat.st_mode & DIR_MODE else \
             True if path == PurePosixPath('.') else \
-            False  # WIP
+            await _dir_exists(self.session, self.credentials, self.bucket, path)
         return result
 
     @universal_exception
@@ -108,7 +108,7 @@ class S3PathIO():
         result = \
             True if isinstance(path, S3Path) and path.stat.st_mode & REG_MODE else \
             False if path == PurePosixPath('.') else \
-            False  # WIP
+            await _file_exists(self.session, self.credentials, self.bucket, path)
         return result
 
     @universal_exception
@@ -155,17 +155,31 @@ class S3PathIO():
         raise NotImplementedError
 
 
-def _key(_):
-    return ''
+async def _file_exists(session, credentials, bucket, path):
+    key = path.as_posix()
+    response, _ = await _make_s3_request(session, credentials, bucket,
+                                         'HEAD', '/' + key, {}, {}, b'')
+    return response.status == 200
+
+
+async def _dir_exists(session, credentials, bucket, path):
+    key = path.as_posix()
+    response, _ = await _make_s3_request(session, credentials, bucket,
+                                         'HEAD', '/' + key + S3_DIR_SUFFIX, {}, {}, b'')
+    return response.status == 200
 
 
 async def _list(session, creds, bucket, path):
-    for child_path in await _list_immediate_child_paths(session, creds, bucket, _key(path)):
+    key_prefix = \
+        '' if path == PurePosixPath('.') else \
+        path.as_posix() + S3_DIR_SUFFIX
+
+    for child_path in await _list_immediate_child_paths(session, creds, bucket, key_prefix):
         yield child_path
 
 
 async def _list_immediate_child_paths(session, creds, bucket, key_prefix):
-    return await _list_paths(session, creds, bucket, key_prefix, '/')
+    return await _list_paths(session, creds, bucket, key_prefix, S3_DIR_SUFFIX)
 
 
 async def _list_paths(session, creds, bucket, key_prefix, delimeter):
@@ -206,6 +220,9 @@ async def _list_paths(session, creds, bucket, key_prefix, delimeter):
         for element in root:
             if element.tag == f'{namespace}Contents':
                 key = _first_child_text(element, f'{namespace}Key')
+                if key[-1] == S3_DIR_SUFFIX:
+                    continue
+
                 last_modified_str = _first_child_text(element, f'{namespace}LastModified')
                 last_modified_datetime = datetime.strptime(
                     last_modified_str, '%Y-%m-%dT%H:%M:%S.%fZ')
