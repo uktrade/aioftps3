@@ -188,15 +188,17 @@ async def _list(context, path):
 def _open_wb(context, path):
 
     chunks = []
+    payload_hash = hashlib.sha256()
 
     def append_chunk(chunk):
         chunks.append(chunk)
+        payload_hash.update(chunk)
 
     async def put_data():
         payload = b''.join(chunks)
         key = path.as_posix()
         response, _ = await _s3_request_full(context, 'PUT', '/' + key, {}, {},
-                                             payload, _hash(payload))
+                                             payload, payload_hash.hexdigest())
         response.raise_for_status()
 
     class WritableFile():
