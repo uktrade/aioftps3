@@ -12,6 +12,7 @@ from aioftp.pathio import (
     universal_exception,
 )
 
+
 REG_MODE = 0o10000  # stat.S_IFREG
 DIR_MODE = 0o40000  # stat.S_IFDIR
 
@@ -187,15 +188,15 @@ async def _list(context, path):
 
 def _open_wb(context, path):
 
-    chunks = []
+    part_chunks = []
     payload_hash = hashlib.sha256()
 
     def append_chunk(chunk):
-        chunks.append(chunk)
+        part_chunks.append(chunk)
         payload_hash.update(chunk)
 
     async def put_data():
-        payload = b''.join(chunks)
+        payload = b''.join(part_chunks)
         key = path.as_posix()
         response, _ = await _s3_request_full(context, 'PUT', '/' + key, {}, {},
                                              payload, payload_hash.hexdigest())
