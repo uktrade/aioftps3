@@ -113,8 +113,8 @@ class S3PathIO():
         return await _is_file(self._context(), path)
 
     @universal_exception
-    async def mkdir(self, path, *, parents=False, exist_ok=False):
-        raise NotImplementedError
+    async def mkdir(self, path, *_, **__):
+        await _mkdir(self._context(), path)
 
     @universal_exception
     async def rmdir(self, path):
@@ -180,6 +180,12 @@ async def _dir_exists(context, path):
     response, _ = await _s3_request_full(context, 'HEAD', '/' + key + S3_DIR_SUFFIX, {}, {},
                                          b'', _hash(b''))
     return response.status == 200
+
+
+async def _mkdir(context, path):
+    key = path.as_posix() + '/'
+    response, _ = await _s3_request_full(context, 'PUT', '/' + key, {}, {}, b'', _hash(b''))
+    response.raise_for_status()
 
 
 async def _list(context, path):
