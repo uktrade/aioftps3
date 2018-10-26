@@ -214,9 +214,14 @@ def _open_wb(context, path):
         part_chunks = []
         part_payload_hash = hashlib.sha256()
 
-    def write(chunk):
-        # This is not a coroutine, because it doesn't need to be:
-        # at most it schedules tasks for later
+    async def write(chunk):
+        # If ingress is faster than egress, need to do something to avoid storing
+        # the entire file in memory. Could have something better/fancier but in
+        # our case, suspect egress to S3 will will always be faster than ingress,
+        # we keep this simple and just prevent from running out of memory in case
+        # it happens
+        await asyncio.wait(part_uploads[-1:] or [_null_coroutine()])
+
         nonlocal part_length
         part_length += len(chunk)
         part_chunks.append(chunk)
@@ -251,7 +256,7 @@ def _open_wb(context, path):
 
         @staticmethod
         async def write(chunk):
-            write(chunk)
+            await write(chunk)
 
     return WritableFile()
 
@@ -511,3 +516,7 @@ OPENERS = {
     'wb': _open_wb,
     'rb': _open_rb,
 }
+
+
+async def _null_coroutine():
+    pass
