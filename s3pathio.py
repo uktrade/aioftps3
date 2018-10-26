@@ -122,7 +122,7 @@ class S3PathIO():
 
     @universal_exception
     async def unlink(self, path):
-        raise NotImplementedError
+        return await _unlink(self._context(), path)
 
     def list(self, path):
         return _list(self._context(), path)
@@ -189,6 +189,12 @@ async def _list(context, path):
 
     for child_path in await _list_immediate_child_paths(context, key_prefix):
         yield child_path
+
+
+async def _unlink(context, path):
+    key = path.as_posix()
+    response, _ = await _s3_request_full(context, 'DELETE', '/' + key, {}, {}, b'', _hash(b''))
+    response.raise_for_status()
 
 
 def _open_wb(context, path):
