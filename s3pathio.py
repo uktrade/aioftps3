@@ -33,6 +33,10 @@ AwsS3Bucket = namedtuple('AwsS3Bucket', [
     'region', 'host', 'name',
 ])
 
+Context = namedtuple('Context', [
+    'session', 'credentials', 'bucket',
+])
+
 
 class S3Path(PurePosixPath):
     ''' The purpose of this class is to be able to integrate with
@@ -92,15 +96,15 @@ class S3PathIO():
 
     @universal_exception
     async def exists(self, path):
-        return await _exists(self.session, self.credentials, self.bucket, path)
+        return await _exists(self._context(), path)
 
     @universal_exception
     async def is_dir(self, path):
-        return await _is_dir(self.session, self.credentials, self.bucket, path)
+        return await _is_dir(self._context(), path)
 
     @universal_exception
     async def is_file(self, path):
-        return await _is_file(self.session, self.credentials, self.bucket, path)
+        return await _is_file(self._context(), path)
 
     @universal_exception
     async def mkdir(self, path, *, parents=False, exist_ok=False):
@@ -115,66 +119,71 @@ class S3PathIO():
         raise NotImplementedError
 
     def list(self, path):
-        return _list(self.session, self.credentials, self.bucket, path)
+        return _list(self._context(), path)
 
     @universal_exception
     async def stat(self, path):
         return path.stat
 
     def open(self, path, mode):
-        return OPENERS[mode](self.session, self.credentials, self.bucket, path)
+        return OPENERS[mode](self._context(), path)
 
     @universal_exception
     async def rename(self, source, destination):
         raise NotImplementedError
 
+    def _context(self):
+        return Context(
+            session=self.session,
+            credentials=self.credentials,
+            bucket=self.bucket,
+        )
 
-async def _exists(session, credentials, bucket, path):
+
+async def _exists(context, path):
     return \
-        await _is_file(session, credentials, bucket, path) or \
-        await _is_dir(session, credentials, bucket, path)
+        await _is_file(context, path) or \
+        await _is_dir(context, path)
 
 
-async def _is_dir(session, credentials, bucket, path):
+async def _is_dir(context, path):
     result = \
         True if isinstance(path, S3Path) and path.stat.st_mode & DIR_MODE else \
         True if path == PurePosixPath('.') else \
-        await _dir_exists(session, credentials, bucket, path)
+        await _dir_exists(context, path)
     return result
 
 
-async def _is_file(session, credentials, bucket, path):
+async def _is_file(context, path):
     result = \
         True if isinstance(path, S3Path) and path.stat.st_mode & REG_MODE else \
         False if path == PurePosixPath('.') else \
-        await _file_exists(session, credentials, bucket, path)
+        await _file_exists(context, path)
     return result
 
 
-async def _file_exists(session, credentials, bucket, path):
+async def _file_exists(context, path):
     key = path.as_posix()
-    response, _ = await _make_s3_request(session, credentials, bucket,
-                                         'HEAD', '/' + key, {}, {}, b'')
+    response, _ = await _make_s3_request(context, 'HEAD', '/' + key, {}, {}, b'')
     return response.status == 200
 
 
-async def _dir_exists(session, credentials, bucket, path):
+async def _dir_exists(context, path):
     key = path.as_posix()
-    response, _ = await _make_s3_request(session, credentials, bucket,
-                                         'HEAD', '/' + key + S3_DIR_SUFFIX, {}, {}, b'')
+    response, _ = await _make_s3_request(context, 'HEAD', '/' + key + S3_DIR_SUFFIX, {}, {}, b'')
     return response.status == 200
 
 
-async def _list(session, creds, bucket, path):
+async def _list(context, path):
     key_prefix = \
         '' if path == PurePosixPath('.') else \
         path.as_posix() + S3_DIR_SUFFIX
 
-    for child_path in await _list_immediate_child_paths(session, creds, bucket, key_prefix):
+    for child_path in await _list_immediate_child_paths(context, key_prefix):
         yield child_path
 
 
-def _open_wb(session, creds, bucket, path):
+def _open_wb(context, path):
 
     chunks = []
 
@@ -184,8 +193,7 @@ def _open_wb(session, creds, bucket, path):
     async def put_data():
         payload = b''.join(chunks)
         key = path.as_posix()
-        response, _ = await _make_s3_request(session, creds, bucket,
-                                             'PUT', '/' + key, {}, {}, payload)
+        response, _ = await _make_s3_request(context, 'PUT', '/' + key, {}, {}, payload)
         response.raise_for_status()
 
     class WritableFile():
@@ -205,15 +213,14 @@ def _open_wb(session, creds, bucket, path):
     return WritableFile()
 
 
-def _open_rb(session, creds, bucket, path):
+def _open_rb(context, path):
 
     data = b''
 
     async def get_data():
         nonlocal data
         key = path.as_posix()
-        response, body = await _make_s3_request(session, creds, bucket,
-                                                'GET', '/' + key, {}, {}, b'')
+        response, body = await _make_s3_request(context, 'GET', '/' + key, {}, {}, b'')
         response.raise_for_status()
         data = body
 
@@ -236,11 +243,11 @@ def _open_rb(session, creds, bucket, path):
     return ReadableFile()
 
 
-async def _list_immediate_child_paths(session, creds, bucket, key_prefix):
-    return await _list_paths(session, creds, bucket, key_prefix, S3_DIR_SUFFIX)
+async def _list_immediate_child_paths(context, key_prefix):
+    return await _list_paths(context, key_prefix, S3_DIR_SUFFIX)
 
 
-async def _list_paths(session, creds, bucket, key_prefix, delimeter):
+async def _list_paths(context, key_prefix, delimeter):
     epoch = datetime.utcfromtimestamp(0)
     common_query = {
         'max-keys': '1000',
@@ -253,7 +260,7 @@ async def _list_paths(session, creds, bucket, key_prefix, delimeter):
             'delimiter': delimeter,
             'prefix': key_prefix,
         }
-        _, body = await _make_s3_request(session, creds, bucket, 'GET', '/', query, {}, b'')
+        _, body = await _make_s3_request(context, 'GET', '/', query, {}, b'')
         return _parse_list_response(body)
 
     async def _list_later_page(token):
@@ -261,7 +268,7 @@ async def _list_paths(session, creds, bucket, key_prefix, delimeter):
             **common_query,
             'continuation-token': token,
         }
-        _, body = await _make_s3_request(session, creds, bucket, 'GET', '/', query, {}, b'')
+        _, body = await _make_s3_request(context, 'GET', '/', query, {}, b'')
         return _parse_list_response(body)
 
     def _first_child_text(element, tag):
@@ -323,15 +330,15 @@ async def _list_paths(session, creds, bucket, key_prefix, delimeter):
     return paths
 
 
-async def _make_s3_request(session, credentials, bucket,
-                           method, path, query, api_pre_auth_headers, payload):
+async def _make_s3_request(context, method, path, query, api_pre_auth_headers, payload):
 
     service = 's3'
-    creds = await credentials()
+    creds = await context.credentials()
     pre_auth_headers = {
         **api_pre_auth_headers,
         **creds.pre_auth_headers,
     }
+    bucket = context.bucket
     full_path = f'/{bucket.name}{path}'
     headers = _aws_sig_v4_headers(
         creds.access_key_id, creds.secret_access_key, pre_auth_headers,
@@ -342,7 +349,7 @@ async def _make_s3_request(session, credentials, bucket,
     encoded_path = urllib.parse.quote(full_path, safe='/~')
     url = f'https://{bucket.host}{encoded_path}' + (('?' + querystring) if querystring else '')
 
-    async with session.request(method, url, headers=headers, data=payload) as result:
+    async with context.session.request(method, url, headers=headers, data=payload) as result:
         return result, await result.read()
 
 
