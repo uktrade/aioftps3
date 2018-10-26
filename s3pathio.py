@@ -164,6 +164,16 @@ def _open_wb(session, creds, bucket, path):
 
     chunks = []
 
+    def append_chunk(chunk):
+        chunks.append(chunk)
+
+    async def put_data():
+        payload = b''.join(chunks)
+        key = path.as_posix()
+        response, _ = await _make_s3_request(session, creds, bucket,
+                                             'PUT', '/' + key, {}, {}, payload)
+        response.raise_for_status()
+
     class WritableFile():
 
         async def __aenter__(self):
@@ -172,15 +182,11 @@ def _open_wb(session, creds, bucket, path):
         async def __aexit__(self, exc_type, exc, traceback):
             if exc_type is not None:
                 return
+            await put_data()
 
-            payload = b''.join(chunks)
-            key = path.as_posix()
-            response, _ = await _make_s3_request(session, creds, bucket,
-                                                 'PUT', '/' + key, {}, {}, payload)
-            response.raise_for_status()
-
-        async def write(self, incoming_bytes):
-            chunks.append(incoming_bytes)
+        @staticmethod
+        async def write(chunk):
+            append_chunk(chunk)
 
     return WritableFile()
 
@@ -189,10 +195,6 @@ def _open_rb(session, creds, bucket, path):
 
     data = b''
 
-    async def iter_data(count):
-        for i in range(0, len(data), count):
-            yield data[i:i+count]
-
     async def get_data():
         nonlocal data
         key = path.as_posix()
@@ -200,6 +202,10 @@ def _open_rb(session, creds, bucket, path):
                                                 'GET', '/' + key, {}, {}, b'')
         response.raise_for_status()
         data = body
+
+    async def iter_data(count):
+        for i in range(0, len(data), count):
+            yield data[i:i+count]
 
     class ReadableFile():
 
