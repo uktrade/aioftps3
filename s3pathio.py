@@ -340,9 +340,10 @@ async def _s3_request(context, method, path, query, api_pre_auth_headers, payloa
     }
     bucket = context.bucket
     full_path = f'/{bucket.name}{path}'
+    payload_hash = hashlib.sha256(payload).hexdigest()
     headers = _aws_sig_v4_headers(
         creds.access_key_id, creds.secret_access_key, pre_auth_headers,
-        service, bucket.region, bucket.host, method, full_path, query, payload,
+        service, bucket.region, bucket.host, method, full_path, query, payload_hash,
     )
 
     querystring = urllib.parse.urlencode(query, safe='~', quote_via=urllib.parse.quote)
@@ -353,13 +354,12 @@ async def _s3_request(context, method, path, query, api_pre_auth_headers, payloa
 
 
 def _aws_sig_v4_headers(access_key_id, secret_access_key, pre_auth_headers,
-                        service, region, host, method, path, query, payload):
+                        service, region, host, method, path, query, payload_hash):
     algorithm = 'AWS4-HMAC-SHA256'
 
     now = datetime.utcnow()
     amzdate = now.strftime('%Y%m%dT%H%M%SZ')
     datestamp = now.strftime('%Y%m%d')
-    payload_hash = hashlib.sha256(payload).hexdigest()
     credential_scope = f'{datestamp}/{region}/{service}/aws4_request'
 
     pre_auth_headers_lower = {
