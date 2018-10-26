@@ -130,7 +130,7 @@ class S3PathIO():
         return path.stat
 
     def open(self, path, mode):
-        raise NotImplementedError
+        return OPENERS[mode](self.session, self.credentials, self.bucket, path)
 
     @universal_exception
     async def rename(self, source, destination):
@@ -158,6 +158,31 @@ async def _list(session, creds, bucket, path):
 
     for child_path in await _list_immediate_child_paths(session, creds, bucket, key_prefix):
         yield child_path
+
+
+def _open_wb(session, creds, bucket, path):
+
+    chunks = []
+
+    class WritableFile():
+
+        async def __aenter__(self):
+            pass
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            if exc_type is not None:
+                return
+
+            payload = b''.join(chunks)
+            key = path.as_posix()
+            response, _ = await _make_s3_request(session, creds, bucket,
+                                                 'PUT', '/' + key, {}, {}, payload)
+            response.raise_for_status()
+
+        async def write(self, incoming_bytes):
+            chunks.append(incoming_bytes)
+
+    return WritableFile()
 
 
 async def _list_immediate_child_paths(session, creds, bucket, key_prefix):
@@ -325,3 +350,8 @@ def _aws_sig_v4_headers(access_key_id, secret_access_key, pre_auth_headers,
         'Authorization': f'{algorithm} Credential={access_key_id}/{credential_scope}, '
                          f'SignedHeaders={signed_headers}, Signature=' + signature(),
     }
+
+
+OPENERS = {
+    'wb': _open_wb,
+}
