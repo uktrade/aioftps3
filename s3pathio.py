@@ -188,17 +188,25 @@ async def _list(context, path):
 
 def _open_wb(context, path):
 
+    part_length = 0
     part_chunks = []
     part_payload_hash = hashlib.sha256()
 
     async def append_chunk(chunk):
+        nonlocal part_length
+        part_length += len(chunk)
         part_chunks.append(chunk)
         part_payload_hash.update(chunk)
 
+    async def aiter(iterable):
+        for item in iterable:
+            yield item
+
     async def put_data():
-        part_payload = b''.join(part_chunks)
+        part_payload = aiter(part_chunks)
         key = path.as_posix()
-        response, _ = await _s3_request_full(context, 'PUT', '/' + key, {}, {},
+        headers = {'Content-Length': str(part_length)}
+        response, _ = await _s3_request_full(context, 'PUT', '/' + key, {}, headers,
                                              part_payload, part_payload_hash.hexdigest())
         response.raise_for_status()
 
