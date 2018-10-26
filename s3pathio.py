@@ -4,7 +4,6 @@ from collections import (
 from datetime import datetime
 import hashlib
 import hmac
-import io
 from pathlib import PurePosixPath
 import urllib
 import xml.etree.ElementTree as ET
@@ -131,22 +130,6 @@ class S3PathIO():
         return path.stat
 
     def open(self, path, mode):
-        raise NotImplementedError
-
-    @universal_exception
-    async def seek(self, file, offset, whence=io.SEEK_SET):
-        raise NotImplementedError
-
-    @universal_exception
-    async def write(self, file, data):
-        raise NotImplementedError
-
-    @universal_exception
-    async def read(self, file, block_size):
-        raise NotImplementedError
-
-    @universal_exception
-    async def close(self, file):
         raise NotImplementedError
 
     @universal_exception
