@@ -92,23 +92,15 @@ class S3PathIO():
 
     @universal_exception
     async def exists(self, path):
-        return await self.is_file(path) or await self.is_dir(path)
+        return await _exists(self.session, self.credentials, self.bucket, path)
 
     @universal_exception
     async def is_dir(self, path):
-        result = \
-            True if isinstance(path, S3Path) and path.stat.st_mode & DIR_MODE else \
-            True if path == PurePosixPath('.') else \
-            await _dir_exists(self.session, self.credentials, self.bucket, path)
-        return result
+        return await _is_dir(self.session, self.credentials, self.bucket, path)
 
     @universal_exception
     async def is_file(self, path):
-        result = \
-            True if isinstance(path, S3Path) and path.stat.st_mode & REG_MODE else \
-            False if path == PurePosixPath('.') else \
-            await _file_exists(self.session, self.credentials, self.bucket, path)
-        return result
+        return await _is_file(self.session, self.credentials, self.bucket, path)
 
     @universal_exception
     async def mkdir(self, path, *, parents=False, exist_ok=False):
@@ -135,6 +127,28 @@ class S3PathIO():
     @universal_exception
     async def rename(self, source, destination):
         raise NotImplementedError
+
+
+async def _exists(session, credentials, bucket, path):
+    return \
+        await _is_file(session, credentials, bucket, path) or \
+        await _is_dir(session, credentials, bucket, path)
+
+
+async def _is_dir(session, credentials, bucket, path):
+    result = \
+        True if isinstance(path, S3Path) and path.stat.st_mode & DIR_MODE else \
+        True if path == PurePosixPath('.') else \
+        await _dir_exists(session, credentials, bucket, path)
+    return result
+
+
+async def _is_file(session, credentials, bucket, path):
+    result = \
+        True if isinstance(path, S3Path) and path.stat.st_mode & REG_MODE else \
+        False if path == PurePosixPath('.') else \
+        await _file_exists(session, credentials, bucket, path)
+    return result
 
 
 async def _file_exists(session, credentials, bucket, path):
