@@ -185,6 +185,37 @@ def _open_wb(session, creds, bucket, path):
     return WritableFile()
 
 
+def _open_rb(session, creds, bucket, path):
+
+    data = b''
+
+    async def iter_data(count):
+        for i in range(0, len(data), count):
+            yield data[i:i+count]
+
+    async def get_data():
+        nonlocal data
+        key = path.as_posix()
+        response, body = await _make_s3_request(session, creds, bucket,
+                                                'GET', '/' + key, {}, {}, b'')
+        response.raise_for_status()
+        data = body
+
+    class ReadableFile():
+
+        async def __aenter__(self):
+            return get_data()
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            pass
+
+        @staticmethod
+        def iter_by_block(count):
+            return iter_data(count)
+
+    return ReadableFile()
+
+
 async def _list_immediate_child_paths(session, creds, bucket, key_prefix):
     return await _list_paths(session, creds, bucket, key_prefix, S3_DIR_SUFFIX)
 
@@ -354,4 +385,5 @@ def _aws_sig_v4_headers(access_key_id, secret_access_key, pre_auth_headers,
 
 OPENERS = {
     'wb': _open_wb,
+    'rb': _open_rb,
 }
