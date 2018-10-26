@@ -39,6 +39,7 @@ def main():
         path_io_factory=s3pathio.s3_path_io_factory(
             session=session, credentials=credentials, bucket=bucket),
         data_ports=range(8022, 8042),
+        block_size=64 * 1024 * 1024,
     )
     loop.run_until_complete(server.start('0.0.0.0', 8021))
 

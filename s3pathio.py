@@ -1,3 +1,4 @@
+import asyncio
 from collections import (
     namedtuple,
 )
@@ -5,6 +6,7 @@ from datetime import datetime
 import hashlib
 import hmac
 from pathlib import PurePosixPath
+import re
 import urllib
 import xml.etree.ElementTree as ET
 
@@ -12,6 +14,9 @@ from aioftp.pathio import (
     universal_exception,
 )
 
+
+# This must be between 5 and 2000MB
+MULTIPART_UPLOAD_MIN_BYTES = 1024 * 1024 * 25
 
 REG_MODE = 0o10000  # stat.S_IFREG
 DIR_MODE = 0o40000  # stat.S_IFDIR
@@ -187,44 +192,118 @@ async def _list(context, path):
 
 
 def _open_wb(context, path):
+    key = path.as_posix()
 
-    part_length = 0
-    part_chunks = []
-    part_payload_hash = hashlib.sha256()
+    upload_id = None
+    part_uploads = []
 
-    async def append_chunk(chunk):
+    part_length = None
+    part_chunks = None
+    part_payload_hash = None
+
+    async def start():
+        nonlocal upload_id
+        new_part_init()
+        upload_id = await _multipart_upload_start(context, key)
+
+    def new_part_init():
+        nonlocal part_length
+        nonlocal part_chunks
+        nonlocal part_payload_hash
+        part_length = 0
+        part_chunks = []
+        part_payload_hash = hashlib.sha256()
+
+    def write(chunk):
+        # This is not a coroutine, because it doesn't need to be:
+        # at most it schedules tasks for later
         nonlocal part_length
         part_length += len(chunk)
         part_chunks.append(chunk)
         part_payload_hash.update(chunk)
 
-    async def aiter(iterable):
-        for item in iterable:
-            yield item
+        if part_length >= MULTIPART_UPLOAD_MIN_BYTES:
+            upload_part()
 
-    async def put_data():
-        part_payload = aiter(part_chunks)
-        key = path.as_posix()
-        headers = {'Content-Length': str(part_length)}
-        response, _ = await _s3_request_full(context, 'PUT', '/' + key, {}, headers,
-                                             part_payload, part_payload_hash.hexdigest())
-        response.raise_for_status()
+    def upload_part():
+        part_number = str(len(part_uploads) + 1)
+        upload_coro = _multipart_upload_part(
+            context, key, upload_id,
+            part_number, part_length, part_chunks, part_payload_hash.hexdigest())
+        part_uploads.append(asyncio.create_task(upload_coro))
+        new_part_init()
+
+    async def end():
+        if part_length:
+            upload_part()
+
+        indexes_and_etags = await asyncio.gather(*part_uploads)
+        await _multipart_upload_complete(context, key, upload_id, indexes_and_etags)
+        new_part_init()
 
     class WritableFile():
 
         async def __aenter__(self):
-            pass
+            await start()
 
         async def __aexit__(self, exc_type, exc, traceback):
-            if exc_type is not None:
-                return
-            await put_data()
+            await end()
 
         @staticmethod
         async def write(chunk):
-            await append_chunk(chunk)
+            write(chunk)
 
     return WritableFile()
+
+
+async def _multipart_upload_start(context, key):
+    query = {
+        'uploads': '',
+    }
+    response, body = await _s3_request_full(context, 'POST', '/' + key, query, {},
+                                            b'', _hash(b''))
+    response.raise_for_status()
+    return re.search(b'<UploadId>(.*)</UploadId>', body)[1].decode('utf-8')
+
+
+async def _multipart_upload_part(context, key, upload_id, part_number, part_length,
+                                 part_chunks, part_payload_hash):
+    async def aiter(iterable):
+        for item in iterable:
+            await asyncio.sleep(0)
+            yield item
+
+    part_payload = aiter(part_chunks)
+    query = {
+        'partNumber': part_number,
+        'uploadId': upload_id,
+    }
+    headers = {'Content-Length': str(part_length)}
+    response, _ = await _s3_request_full(context, 'PUT', '/' + key, query, headers,
+                                         part_payload, part_payload_hash)
+    response.raise_for_status()
+    part_etag = response.headers['ETag']
+
+    return (part_number, part_etag)
+
+
+async def _multipart_upload_complete(context, key, upload_id, part_numbers_and_etags):
+
+    payload = (
+        '<CompleteMultipartUpload>' +
+        ''.join(
+            f'<Part><PartNumber>{part_number}</PartNumber><ETag>{part_etag}</ETag></Part>'
+            for part_number, part_etag in part_numbers_and_etags
+        ) +
+        '</CompleteMultipartUpload>'
+    ).encode('utf-8')
+    payload_hash = _hash(payload)
+    query = {
+        'uploadId': upload_id,
+    }
+    response, _ = await _s3_request_full(context, 'POST', '/' + key, query, {},
+                                         payload, payload_hash)
+    response.raise_for_status()
 
 
 def _open_rb(context, path):
@@ -359,6 +438,7 @@ async def _s3_request(context, method, path, query, api_pre_auth_headers, payloa
     }
     bucket = context.bucket
     full_path = f'/{bucket.name}{path}'
+
     headers = _aws_sig_v4_headers(
         creds.access_key_id, creds.secret_access_key, pre_auth_headers,
         service, bucket.region, bucket.host, method, full_path, query, payload_hash,
