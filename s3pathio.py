@@ -210,7 +210,7 @@ def _open_rb(session, creds, bucket, path):
     class ReadableFile():
 
         async def __aenter__(self):
-            return get_data()
+            await get_data()
 
         async def __aexit__(self, exc_type, exc, traceback):
             pass
