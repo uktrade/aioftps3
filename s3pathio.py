@@ -126,7 +126,7 @@ class S3PathIO():
 
     @universal_exception
     async def rmdir(self, path):
-        raise NotImplementedError
+        return await _rmdir(self._context(), path)
 
     @universal_exception
     async def unlink(self, path):
@@ -194,6 +194,20 @@ async def _mkdir(context, path):
     key = path.as_posix() + '/'
     response, _ = await _s3_request_full(context, 'PUT', '/' + key, {}, {}, b'', _hash(b''))
     response.raise_for_status()
+
+
+async def _rmdir(context, path):
+    key_prefix = path.as_posix() + '/'
+    keys = await _list_descendant_keys(context, key_prefix)
+
+    def delete_sort_key(key):
+        # Delete innermost files and folders first
+        return (key.key.count('/'), len(key.key), key.key)
+
+    for key in sorted(keys, key=delete_sort_key, reverse=True):
+        response, _ = await _s3_request_full(context, 'DELETE', '/' + key.key, {}, {},
+                                             b'', _hash(b''))
+        response.raise_for_status()
 
 
 async def _list(context, path):
@@ -383,6 +397,11 @@ async def _list_immediate_child_paths(context, key_prefix):
         ))
         for list_prefix in list_prefixes
     ]
+
+
+async def _list_descendant_keys(context, key_prefix):
+    list_keys, _ = await _list_keys(context, key_prefix, '')
+    return list_keys
 
 
 async def _list_keys(context, key_prefix, delimeter):
