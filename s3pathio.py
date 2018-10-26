@@ -164,13 +164,13 @@ async def _is_file(context, path):
 
 async def _file_exists(context, path):
     key = path.as_posix()
-    response, _ = await _make_s3_request(context, 'HEAD', '/' + key, {}, {}, b'')
+    response, _ = await _s3_request_full(context, 'HEAD', '/' + key, {}, {}, b'')
     return response.status == 200
 
 
 async def _dir_exists(context, path):
     key = path.as_posix()
-    response, _ = await _make_s3_request(context, 'HEAD', '/' + key + S3_DIR_SUFFIX, {}, {}, b'')
+    response, _ = await _s3_request_full(context, 'HEAD', '/' + key + S3_DIR_SUFFIX, {}, {}, b'')
     return response.status == 200
 
 
@@ -193,7 +193,7 @@ def _open_wb(context, path):
     async def put_data():
         payload = b''.join(chunks)
         key = path.as_posix()
-        response, _ = await _make_s3_request(context, 'PUT', '/' + key, {}, {}, payload)
+        response, _ = await _s3_request_full(context, 'PUT', '/' + key, {}, {}, payload)
         response.raise_for_status()
 
     class WritableFile():
@@ -220,7 +220,7 @@ def _open_rb(context, path):
     async def get_data():
         nonlocal data
         key = path.as_posix()
-        response, body = await _make_s3_request(context, 'GET', '/' + key, {}, {}, b'')
+        response, body = await _s3_request_full(context, 'GET', '/' + key, {}, {}, b'')
         response.raise_for_status()
         data = body
 
@@ -260,7 +260,7 @@ async def _list_paths(context, key_prefix, delimeter):
             'delimiter': delimeter,
             'prefix': key_prefix,
         }
-        _, body = await _make_s3_request(context, 'GET', '/', query, {}, b'')
+        _, body = await _s3_request_full(context, 'GET', '/', query, {}, b'')
         return _parse_list_response(body)
 
     async def _list_later_page(token):
@@ -268,7 +268,7 @@ async def _list_paths(context, key_prefix, delimeter):
             **common_query,
             'continuation-token': token,
         }
-        _, body = await _make_s3_request(context, 'GET', '/', query, {}, b'')
+        _, body = await _s3_request_full(context, 'GET', '/', query, {}, b'')
         return _parse_list_response(body)
 
     def _first_child_text(element, tag):
@@ -330,7 +330,13 @@ async def _list_paths(context, key_prefix, delimeter):
     return paths
 
 
-async def _make_s3_request(context, method, path, query, api_pre_auth_headers, payload):
+async def _s3_request_full(context, method, path, query, api_pre_auth_headers, payload):
+    async with await _s3_request(context, method, path, query, api_pre_auth_headers,
+                                 payload) as result:
+        return result, await result.read()
+
+
+async def _s3_request(context, method, path, query, api_pre_auth_headers, payload):
 
     service = 's3'
     creds = await context.credentials()
@@ -349,8 +355,7 @@ async def _make_s3_request(context, method, path, query, api_pre_auth_headers, p
     encoded_path = urllib.parse.quote(full_path, safe='/~')
     url = f'https://{bucket.host}{encoded_path}' + (('?' + querystring) if querystring else '')
 
-    async with context.session.request(method, url, headers=headers, data=payload) as result:
-        return result, await result.read()
+    return context.session.request(method, url, headers=headers, data=payload)
 
 
 def _aws_sig_v4_headers(access_key_id, secret_access_key, pre_auth_headers,
