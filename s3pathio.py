@@ -191,7 +191,7 @@ def _open_wb(context, path):
     part_chunks = []
     part_payload_hash = hashlib.sha256()
 
-    def append_chunk(chunk):
+    async def append_chunk(chunk):
         part_chunks.append(chunk)
         part_payload_hash.update(chunk)
 
@@ -214,7 +214,7 @@ def _open_wb(context, path):
 
         @staticmethod
         async def write(chunk):
-            append_chunk(chunk)
+            await append_chunk(chunk)
 
     return WritableFile()
 
