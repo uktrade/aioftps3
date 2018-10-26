@@ -43,6 +43,14 @@ Context = namedtuple('Context', [
     'session', 'credentials', 'bucket',
 ])
 
+ListKey = namedtuple('ListKey', [
+    'key', 'size', 'last_modified',
+])
+
+ListPrefix = namedtuple('ListPrefix', [
+    'prefix',
+])
+
 
 class S3Path(PurePosixPath):
     ''' The purpose of this class is to be able to integrate with
@@ -349,10 +357,35 @@ def _open_rb(context, path):
 
 
 async def _list_immediate_child_paths(context, key_prefix):
-    return await _list_paths(context, key_prefix, S3_DIR_SUFFIX)
+    list_keys, list_prefixes = await _list_keys(context, key_prefix, S3_DIR_SUFFIX)
+
+    return [
+        S3Path(list_key.key, stat=Stat(
+            st_size=list_key.size,
+            st_mtime=list_key.last_modified,
+            st_ctime=list_key.last_modified,
+            st_nlink=1,
+            st_mode=REG_MODE,
+        ))
+        for list_key in list_keys
+        if list_key.key[-1] != S3_DIR_SUFFIX
+    ] + [
+        S3Path(list_prefix.prefix, stat=Stat(
+            # Not completely sure what size should be for a directory
+            st_size=0,
+            # Can't quite work out an efficient way of working out
+            # any sort of meaningful modification/creation time for a
+            # directory
+            st_mtime=0,
+            st_ctime=0,
+            st_nlink=1,
+            st_mode=DIR_MODE,
+        ))
+        for list_prefix in list_prefixes
+    ]
 
 
-async def _list_paths(context, key_prefix, delimeter):
+async def _list_keys(context, key_prefix, delimeter):
     epoch = datetime.utcfromtimestamp(0)
     common_query = {
         'max-keys': '1000',
@@ -386,53 +419,36 @@ async def _list_paths(context, key_prefix, delimeter):
         namespace = '{http://s3.amazonaws.com/doc/2006-03-01/}'
         root = ET.fromstring(body)
         next_token = ''
-        paths = []
+        keys = []
+        prefixes = []
         for element in root:
             if element.tag == f'{namespace}Contents':
                 key = _first_child_text(element, f'{namespace}Key')
-                if key[-1] == S3_DIR_SUFFIX:
-                    continue
-
                 last_modified_str = _first_child_text(element, f'{namespace}LastModified')
                 last_modified_datetime = datetime.strptime(
                     last_modified_str, '%Y-%m-%dT%H:%M:%S.%fZ')
-                last_modified_since_epoch_seconds = int(
+                last_modified_seconds = int(
                     (last_modified_datetime - epoch).total_seconds())
                 size = int(_first_child_text(element, f'{namespace}Size'))
-                paths.append(S3Path(key, stat=Stat(
-                    st_size=size,
-                    st_mtime=last_modified_since_epoch_seconds,
-                    st_ctime=last_modified_since_epoch_seconds,
-                    st_nlink=1,
-                    st_mode=REG_MODE,
-                )))
+                keys.append(ListKey(key=key, last_modified=last_modified_seconds, size=size))
 
             if element.tag == f'{namespace}CommonPrefixes':
                 # Prefixes end in '/', which we strip off
-                key_prefix = _first_child_text(element, f'{namespace}Prefix')[:-1]
-                paths.append(S3Path(key_prefix, stat=Stat(
-                    # Not completely sure what size should be for a directory
-                    st_size=0,
-                    # Can't quite work out an efficient way of working out
-                    # any sort of meaningful modification/creation time for a
-                    # directory
-                    st_mtime=0,
-                    st_ctime=0,
-                    st_nlink=1,
-                    st_mode=DIR_MODE,
-                )))
+                prefix = _first_child_text(element, f'{namespace}Prefix')[:-1]
+                prefixes.append(ListPrefix(prefix=prefix))
 
             if element.tag == f'{namespace}NextContinuationToken':
                 next_token = element.text
 
-        return (next_token, paths)
+        return (next_token, keys, prefixes)
 
-    token, paths = await _list_first_page()
+    token, keys, prefixes = await _list_first_page()
     while token:
-        token, paths_page = await _list_later_page(token)
-        paths.extend(paths_page)
+        token, keys_page, prefixes_page = await _list_later_page(token)
+        keys.extend(keys_page)
+        prefixes.extend(prefixes_page)
 
-    return paths
+    return keys, prefixes
 
 
 def _hash(payload):
