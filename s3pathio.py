@@ -215,23 +215,17 @@ def _open_wb(context, path):
 
 def _open_rb(context, path):
 
-    data = b''
-
-    async def get_data():
-        nonlocal data
-        key = path.as_posix()
-        response, body = await _s3_request_full(context, 'GET', '/' + key, {}, {}, b'')
-        response.raise_for_status()
-        data = body
-
     async def iter_data(count):
-        for i in range(0, len(data), count):
-            yield data[i:i+count]
+        key = path.as_posix()
+        async with await _s3_request(context, 'GET', '/' + key, {}, {}, b'') as response:
+            response.raise_for_status()
+            async for data in response.content.iter_chunked(count):
+                yield data
 
     class ReadableFile():
 
         async def __aenter__(self):
-            await get_data()
+            pass
 
         async def __aexit__(self, exc_type, exc, traceback):
             pass
