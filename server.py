@@ -30,6 +30,7 @@ def main():
     bucket = aioftps3.s3_path_io_bucket(
         region=os.environ['AWS_S3_BUCKET_REGION'],
         host=os.environ['AWS_S3_BUCKET_HOST'],
+        verify_certs=True,
         name=os.environ['AWS_S3_BUCKET_NAME'],
     )
     session = aiohttp.ClientSession(loop=loop)

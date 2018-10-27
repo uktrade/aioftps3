@@ -36,7 +36,7 @@ AwsCredentials = namedtuple('AwsCredentials', [
 ])
 
 AwsS3Bucket = namedtuple('AwsS3Bucket', [
-    'region', 'host', 'name',
+    'region', 'host', 'verify_certs', 'name',
 ])
 
 Context = namedtuple('Context', [
@@ -88,10 +88,11 @@ def s3_path_io_secret_access_key_credentials(access_key_id, secret_access_key):
     return get
 
 
-def s3_path_io_bucket(region, host, name):
+def s3_path_io_bucket(region, host, verify_certs, name):
     return AwsS3Bucket(
         region=region,
         host=host,
+        verify_certs=verify_certs,
         name=name,
     )
 
@@ -500,9 +501,11 @@ async def _s3_request(context, method, path, query, api_pre_auth_headers, payloa
 
     querystring = urllib.parse.urlencode(query, safe='~', quote_via=urllib.parse.quote)
     encoded_path = urllib.parse.quote(full_path, safe='/~')
-    url = f'https://{bucket.host}{encoded_path}' + (('?' + querystring) if querystring else '')
+    url = f'https://{bucket.host}{encoded_path}' + \
+          (('?' + querystring) if querystring else '')
 
-    return context.session.request(method, url, headers=headers, data=payload)
+    return context.session.request(method, url, ssl=bucket.verify_certs,
+                                   headers=headers, data=payload)
 
 
 def _aws_sig_v4_headers(access_key_id, secret_access_key, pre_auth_headers,

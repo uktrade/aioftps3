@@ -2,6 +2,20 @@
 
 FTP in front of AWS S3, using [asyncio](https://docs.python.org/3/library/asyncio.html), [aioftp](https://github.com/aio-libs/aioftp) and [aiohttp](https://github.com/aio-libs/aiohttp).
 
+## Running tests
+
+Certificates must be created, and Minio, which emulates S3 locally, must be started
+
+```bash
+./certificates-create.sh && ./minio-start.sh
+```
+
+and then to run the tests themselves.
+
+```bash
+./tests.sh
+```
+
 ## Features / Design / Limitations
 
 - Can upload files bigger than 2G: uses [multipart upload](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingRESTAPImpUpload.html) under the hood.
