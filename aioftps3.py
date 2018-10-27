@@ -417,7 +417,8 @@ async def _list_keys(context, key_prefix, delimeter):
             'delimiter': delimeter,
             'prefix': key_prefix,
         }
-        _, body = await _s3_request_full(context, 'GET', '/', query, {}, b'', _hash(b''))
+        response, body = await _s3_request_full(context, 'GET', '/', query, {}, b'', _hash(b''))
+        response.raise_for_status()
         return _parse_list_response(body)
 
     async def _list_later_page(token):
@@ -425,7 +426,8 @@ async def _list_keys(context, key_prefix, delimeter):
             **common_query,
             'continuation-token': token,
         }
-        _, body = await _s3_request_full(context, 'GET', '/', query, {}, b'', _hash(b''))
+        response, body = await _s3_request_full(context, 'GET', '/', query, {}, b'', _hash(b''))
+        response.raise_for_status()
         return _parse_list_response(body)
 
     def _first_child_text(element, tag):
