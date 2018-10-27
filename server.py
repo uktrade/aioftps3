@@ -1,9 +1,9 @@
+import asyncio
 import logging
-import ssl
 import os
+import ssl
 import sys
 
-import asyncio
 import aioftp
 import aiohttp
 import s3pathio
