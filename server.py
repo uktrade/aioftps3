@@ -6,7 +6,8 @@ import sys
 
 import aioftp
 import aiohttp
-import s3pathio
+
+import aioftps3
 
 
 def main():
@@ -22,11 +23,11 @@ def main():
                             keyfile=f'{os.environ["HOME"]}/ssl.key')
 
     loop = asyncio.get_event_loop()
-    credentials = s3pathio.s3_path_io_secret_access_key_credentials(
+    credentials = aioftps3.s3_path_io_secret_access_key_credentials(
         access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
         secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
     )
-    bucket = s3pathio.s3_path_io_bucket(
+    bucket = aioftps3.s3_path_io_bucket(
         region=os.environ['AWS_S3_BUCKET_REGION'],
         host=os.environ['AWS_S3_BUCKET_HOST'],
         name=os.environ['AWS_S3_BUCKET_NAME'],
@@ -36,7 +37,7 @@ def main():
     server = aioftp.Server(
         loop=loop,
         ssl=context,
-        path_io_factory=s3pathio.s3_path_io_factory(
+        path_io_factory=aioftps3.s3_path_io_factory(
             session=session, credentials=credentials, bucket=bucket),
         data_ports=range(8022, 8042),
         block_size=64 * 1024 * 1024,

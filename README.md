@@ -1,4 +1,4 @@
-# ftps-s3
+# aioftps3
 
 ## Building and running locally
 
