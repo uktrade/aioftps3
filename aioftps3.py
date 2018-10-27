@@ -18,8 +18,8 @@ from aioftp.pathio import (
 # This must be between 5 and 2000MB
 MULTIPART_UPLOAD_MIN_BYTES = 1024 * 1024 * 25
 
-REG_MODE = 0o10000  # stat.S_IFREG
-DIR_MODE = 0o40000  # stat.S_IFDIR
+REG_MODE = 0o10666  # stat.S_IFREG | 0o666
+DIR_MODE = 0o40777  # stat.S_IFDIR | 0o777
 
 # The S3 console uses '/' as both the folder separator for
 # navigation, and as the suffix for objects created when
