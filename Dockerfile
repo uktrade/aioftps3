@@ -18,7 +18,7 @@ RUN \
         aiohttp==3.4.4 && \
     apk del .build-deps
 
-COPY s3pathio.py /usr/local/lib/python3.7/site-packages/s3pathio.py
+COPY aioftps3.py /usr/local/lib/python3.7/site-packages/aioftps3.py
 COPY server.py /server.py
 COPY entrypoint.sh /entrypoint.sh
 
