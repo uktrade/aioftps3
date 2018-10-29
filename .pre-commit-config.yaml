@@ -41,6 +41,8 @@ repos:
         - --disable=attribute-defined-outside-init
         - --disable=duplicate-code
         - --disable=missing-docstring
+        # https://github.com/PyCQA/pylint/issues/2440
+        - --disable=not-async-context-manager
         - --disable=protected-access
         - --disable=too-few-public-methods
         - --disable=too-many-instance-attributes
