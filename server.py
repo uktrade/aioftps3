@@ -57,6 +57,7 @@ def main():
         loop.run_forever()
     except KeyboardInterrupt:
         loop.run_until_complete(server.close())
+        loop.run_until_complete(session.close())
         loop.close()
 
 
