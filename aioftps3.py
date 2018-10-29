@@ -1,6 +1,11 @@
 import asyncio
 from collections import (
+    deque,
     namedtuple,
+)
+from contextlib import (
+    AsyncExitStack,
+    asynccontextmanager,
 )
 from datetime import datetime
 import hashlib
@@ -8,6 +13,7 @@ import hmac
 from pathlib import PurePosixPath
 import re
 import urllib
+import weakref
 import xml.etree.ElementTree as ET
 
 from aioftp.pathio import (
@@ -67,11 +73,13 @@ class S3Path(PurePosixPath):
 
 def s3_path_io_factory(session, credentials, bucket):
 
+    lock = _PathLock()
+
     # The aioftp way of configuring the path with a "nursery" doesn't
     # seem that configurable in terms of doing things per instance,
     # so make our own that effectively bypasses it
     def factory(*_, **__):
-        return S3PathIO(session, credentials, bucket)
+        return S3PathIO(session, credentials, bucket, lock)
 
     return factory
 
@@ -99,10 +107,11 @@ def s3_path_io_bucket(region, host, verify_certs, name):
 
 class S3PathIO():
 
-    def __init__(self, session, credentials, bucket):
+    def __init__(self, session, credentials, bucket, lock):
         self.session = session
         self.credentials = credentials
         self.bucket = bucket
+        self.lock = lock
 
         # The aioftp's mechanism for state doesn't seem that
         # configurable per instance, so we don't use it. However,
@@ -123,17 +132,41 @@ class S3PathIO():
 
     @universal_exception
     async def mkdir(self, path, *_, **__):
-        await _mkdir(self._context(), path)
+        context = self._context()
+        async with self.lock(write_to=[path], read_from=[]):
+            if await _exists(context, path):
+                raise Exception('{} already exists'.format(path))
+
+            await _mkdir(context, path)
 
     @universal_exception
     async def rmdir(self, path):
-        return await _rmdir(self._context(), path)
+        context = self._context()
+        async with self.lock(write_to=[path], read_from=[]):
+            if await _is_file(context, path):
+                raise Exception('{} is not a directory'.format(path))
+
+            if not await _is_dir(context, path):
+                raise Exception('{} does not exist'.format(path))
+
+            return await _rmdir(context, path)
 
     @universal_exception
     async def unlink(self, path):
-        return await _unlink(self._context(), path)
+        context = self._context()
+        async with self.lock(write_to=[path], read_from=[]):
+            if await _is_dir(context, path):
+                raise Exception('{} is a directory'.format(path))
+
+            if not await _is_file(context, path):
+                raise Exception('{} does not exist'.format(path))
+
+            return await _unlink(context, path)
 
     def list(self, path):
+        # We allow lists to see non-consistent changes: renames or deletes
+        # of folders with lots of files could be taking a while, and nothing
+        # too horrible will happen if there is a list half way through
         return _list(self._context(), path)
 
     @universal_exception
@@ -141,7 +174,7 @@ class S3PathIO():
         return path.stat
 
     def open(self, path, mode):
-        return OPENERS[mode](self._context(), path)
+        return OPENERS[mode](self._context(), self.lock, path)
 
     @universal_exception
     async def rename(self, source, destination):
@@ -226,7 +259,7 @@ async def _unlink(context, path):
     response.raise_for_status()
 
 
-def _open_wb(context, path):
+def _open_wb(context, lock, path):
     key = path.as_posix()
 
     upload_id = None
@@ -278,7 +311,22 @@ def _open_wb(context, path):
             upload_part()
 
         indexes_and_etags = await asyncio.gather(*part_uploads)
-        await _multipart_upload_complete(context, key, upload_id, indexes_and_etags)
+
+        # Completing the upload is the only action that changes anything (apart from
+        # APIs that query multipart uploads), so this all we need to wrap in a lock.
+        # A bucket lifecycle policy can cleanup unfinished multipart uploads, so we
+        # don't need to do it here
+        async with lock(write_to=[path], read_from=[]):
+            if await _is_file(context, path.parent):
+                raise Exception('{} is not a directory'.format(path.parent))
+
+            if not await _is_dir(context, path.parent):
+                raise Exception('{} does not exist'.format(path.parent))
+
+            # Overwrites are allowed, so there is no need to check if the file aleady exists
+
+            await _multipart_upload_complete(context, key, upload_id, indexes_and_etags)
+
         new_part_init()
 
     class WritableFile():
@@ -346,7 +394,9 @@ async def _multipart_upload_complete(context, key, upload_id, part_numbers_and_e
     response.raise_for_status()
 
 
-def _open_rb(context, path):
+def _open_rb(context, _, path):
+    # S3 GETs are atomic, so we don't need any additional locking
+    # It will either fail with a 404, or return a consistent object
 
     async def iter_data(count):
         key = path.as_posix()
@@ -572,3 +622,127 @@ OPENERS = {
 
 async def _null_coroutine():
     pass
+
+
+class _ReadWaiter(asyncio.Future):
+    pass
+
+
+class _WriteWaiter(asyncio.Future):
+    pass
+
+
+class _ReadWriteLock():
+    # Locks are acquired strictly in the order requested. This is different
+    # to aio-libs/aiorwlock, which does not allow readers to acquire if
+    # there are any waiting writers, which can starve readers
+
+    def __init__(self):
+        self._waiters = deque()
+        self._reads_held = 0
+        self._write_held = False
+
+    def _pop_queued_waiters(self, waiter_type):
+        while True:
+            correct_type = self._waiters and isinstance(self._waiters[0], waiter_type)
+            cancelled = self._waiters and self._waiters[0].cancelled()
+
+            if correct_type or cancelled:
+                waiter = self._waiters.popleft()
+
+            if correct_type and not cancelled:
+                yield waiter
+
+            if not correct_type and not cancelled:
+                break
+
+    def _resolve_queued_waiters(self):
+        if not self._write_held:
+            for waiter in self._pop_queued_waiters(_ReadWaiter):
+                self._reads_held += 1
+                waiter.set_result(None)
+
+        if not self._write_held and not self._reads_held:
+            for waiter in self._pop_queued_waiters(_WriteWaiter):
+                self._write_held = True
+                waiter.set_result(None)
+                break
+
+    def _on_read_release(self):
+        self._reads_held -= 1
+
+    def _on_write_release(self):
+        self._write_held = False
+
+    @asynccontextmanager
+    async def _acquire(self, waiter_type, on_release):
+        waiter = waiter_type()
+        self._waiters.append(waiter)
+        self._resolve_queued_waiters()
+
+        try:
+            await waiter
+        except asyncio.CancelledError:
+            self._resolve_queued_waiters()
+            raise
+
+        try:
+            yield
+        finally:
+            on_release()
+            self._resolve_queued_waiters()
+
+    @asynccontextmanager
+    async def read(self):
+        async with self._acquire(_ReadWaiter, self._on_read_release):
+            yield
+
+    @asynccontextmanager
+    async def write(self):
+        async with self._acquire(_WriteWaiter, self._on_write_release):
+            yield
+
+
+class _PathLock():
+
+    # https://people.eecs.berkeley.edu/~kubitron/courses/cs262a-F14/projects/reports/project6_report.pdf
+    #
+    # Inspired by ^ but a simpler version without the distinction between
+    # "path" and "data" locks: I couldn't see the benefit of that
+
+    def __init__(self):
+        self._locks = weakref.WeakValueDictionary()
+
+    @staticmethod
+    def _sort_key(path_lock):
+        return len(path_lock[0].parents), path_lock[0].as_posix()
+
+    def _with_locks(self, paths, locker):
+        return [
+            (path, self._locks.setdefault(path, default=_ReadWriteLock()), locker)
+            for path in paths
+        ]
+
+    @asynccontextmanager
+    async def __call__(self, write_to, read_from):
+        writable_paths = set(write_to)
+        writable_locks = self._with_locks(writable_paths, lambda lock: lock.write())
+
+        ancestor_paths = _flatten(path.parents for path in write_to + read_from)
+        readable_paths = set(ancestor_paths + read_from) - writable_paths
+        readable_locks = self._with_locks(readable_paths, lambda lock: lock.read())
+
+        sorted_locks = sorted(readable_locks + writable_locks, key=self._sort_key)
+        async with AsyncExitStack() as stack:
+            for _, lock, lock_func in sorted_locks:
+                await stack.enter_async_context(lock_func(lock))
+
+            yield
+
+
+def _flatten(to_flatten):
+    return [
+        item
+        for sub_list in to_flatten
+        for item in sub_list
+    ]
