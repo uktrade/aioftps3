@@ -28,9 +28,9 @@ and then to run the tests themselves.
 
 - May not behave well if upload to the server is faster than its upload to S3.
 
-- It is likely not robust if concurrent users change the same files or directories.
+- There is some locking to deal with the same files being operated on concurrently. However...
 
-- Does nothing to deal with [eventual consistency of S3](https://docs.aws.amazon.com/AmazonS3/latest/dev/Introduction.html#ConsistencyModel), and so some operations may appear to not have an immediate effect.
+- .... it does nothing to deal with [eventual consistency of S3](https://docs.aws.amazon.com/AmazonS3/latest/dev/Introduction.html#ConsistencyModel), and so some operations may appear to not have an immediate effect.
 
 ## Building and running locally
 
