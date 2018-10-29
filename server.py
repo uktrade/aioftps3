@@ -35,7 +35,15 @@ def main():
     )
     session = aiohttp.ClientSession(loop=loop)
 
+    users = (
+        aioftp.User(
+            login=os.environ['FTP_USER_LOGIN'],
+            password=os.environ['FTP_USER_PASSWORD'],
+        ),
+    )
+
     server = aioftp.Server(
+        users=users,
         loop=loop,
         ssl=context,
         path_io_factory=aioftps3.s3_path_io_factory(
