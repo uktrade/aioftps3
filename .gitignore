@@ -1,0 +1,8 @@
+__pycache__/
+dist/
+env/
+build/
+minio-certs
+minio-data
+aioftps3-certs
+aioftps3.egg-info
