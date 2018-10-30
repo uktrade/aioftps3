@@ -24,6 +24,12 @@ from aioftp.pathio import (
 # This must be between 5 and 2000MB
 MULTIPART_UPLOAD_MIN_BYTES = 1024 * 1024 * 25
 
+# How long we sleep per incoming write if uploads haven't kept up
+MULTIPART_UPLOAD_IF_SLOW_SLEEP_SECONDS = 1
+
+# How many in-progress uploads per file we allow per uploading file
+MULTIPART_UPLOAD_MAX_CONCURRENT_UPLOADS_PER_FILE = 3
+
 REG_MODE = 0o10666  # stat.S_IFREG | 0o666
 DIR_MODE = 0o40777  # stat.S_IFDIR | 0o777
 
@@ -285,10 +291,15 @@ def _open_wb(context, lock, path):
     async def write(chunk):
         # If ingress is faster than egress, need to do something to avoid storing
         # the entire file in memory. Could have something better/fancier but in
-        # our case, suspect egress to S3 will will always be faster than ingress,
+        # our case, suspect egress to S3 will always be faster than ingress, so
         # we keep this simple and just prevent from running out of memory in case
-        # it happens
-        await asyncio.wait(part_uploads[-1:] or [_null_coroutine()])
+        # it happens, but also prevent the connection from dying
+        if len(part_uploads) > 2 and not part_uploads[-2].done():
+            await asyncio.sleep(MULTIPART_UPLOAD_IF_SLOW_SLEEP_SECONDS)
+
+            in_progress = [upload for upload in part_uploads if not upload.done()]
+            if len(in_progress) > MULTIPART_UPLOAD_MAX_CONCURRENT_UPLOADS_PER_FILE:
+                raise Exception('Too many incomplete uploads to S3')
 
         nonlocal part_length
         part_length += len(chunk)
@@ -618,10 +629,6 @@ OPENERS = {
     'wb': _open_wb,
     'rb': _open_rb,
 }
-
-
-async def _null_coroutine():
-    pass
 
 
 class _ReadWaiter(asyncio.Future):
