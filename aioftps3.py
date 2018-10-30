@@ -318,7 +318,12 @@ def _open_wb(context, lock, path):
         new_part_init()
 
     async def end():
-        if part_length:
+        # AWS throws an error if the multipart upload doesn't have at least one part
+        # which would happen if write is never called, i.e. for an empty file
+        if not part_uploads:
+            await write(b'')
+
+        if part_chunks:
             upload_part()
 
         indexes_and_etags = await asyncio.gather(*part_uploads)
