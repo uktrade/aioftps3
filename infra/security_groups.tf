@@ -20,6 +20,30 @@ resource "aws_security_group_rule" "app_service_ingress_command_from_whitelist" 
   protocol  = "tcp"
 }
 
+resource "aws_security_group_rule" "app_service_ingress_healthcheck_from_nlb_public" {
+  description = "ingress-healthcheck-from-nlb-public"
+
+  security_group_id = "${aws_security_group.app_service.id}"
+  cidr_blocks       = ["${aws_subnet.public.cidr_block}"]
+
+  type      = "ingress"
+  from_port = "${var.ftp_command_port}"
+  to_port   = "${var.ftp_command_port}"
+  protocol  = "tcp"
+}
+
+resource "aws_security_group_rule" "app_service_ingress_healthcheck_from_nlb_private" {
+  description = "ingress-healthcheck-from-nlb-private"
+
+  security_group_id = "${aws_security_group.app_service.id}"
+  cidr_blocks       = ["${aws_subnet.private.cidr_block}"]
+
+  type      = "ingress"
+  from_port = "${var.ftp_command_port}"
+  to_port   = "${var.ftp_command_port}"
+  protocol  = "tcp"
+}
+
 resource "aws_security_group_rule" "app_service_ingress_data_from_whitelist" {
   description = "ingress-data-from-whitelist"
 
