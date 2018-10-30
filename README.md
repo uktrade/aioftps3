@@ -2,6 +2,7 @@
 
 FTP in front of AWS S3, using [asyncio](https://docs.python.org/3/library/asyncio.html), [aioftp](https://github.com/aio-libs/aioftp) and [aiohttp](https://github.com/aio-libs/aiohttp).
 
+
 ## Running tests
 
 Certificates must be created, and Minio, which emulates S3 locally, must be started
@@ -15,6 +16,7 @@ and then to run the tests themselves.
 ```bash
 ./tests.sh
 ```
+
 
 ## Features / Design / Limitations
 
@@ -32,6 +34,7 @@ and then to run the tests themselves.
 
 - .... it does nothing to deal with [eventual consistency of S3](https://docs.aws.amazon.com/AmazonS3/latest/dev/Introduction.html#ConsistencyModel), and so some operations may appear to not have an immediate effect.
 
+
 ## Building and running locally
 
 ```bash
@@ -46,6 +49,7 @@ docker run --rm -p 8021-8042:8021-8042 \
   -e FTP_USER_PASSWORD=password \
   ftps-s3
 ```
+
 
 ## Building and pushing to Quay
 
