@@ -1,0 +1,58 @@
+[
+  {
+    "name": "${container_name}",
+    "image": "${container_image}",
+    "memoryReservation": ${container_memory},
+    "cpu": ${container_cpu},
+    "essential": true,
+    "portMappings": [${container_ports}],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "${log_group}",
+        "awslogs-region": "${log_region}",
+        "awslogs-stream-prefix": "${container_name}"
+      }
+    },
+    "environment": [{
+      "name": "AWS_ACCESS_KEY_ID",
+      "value": "${aws_access_key_id}"
+    },
+    {
+      "name": "AWS_SECRET_ACCESS_KEY",
+      "value": "${aws_secret_access_key}"
+    },
+    {
+      "name": "AWS_S3_BUCKET_HOST",
+      "value": "${aws_s3_bucket_host}"
+    },
+    {
+      "name": "AWS_S3_BUCKET_NAME",
+      "value": "${aws_s3_bucket_name}"
+    },
+    {
+      "name": "AWS_S3_BUCKET_REGION",
+      "value": "${aws_s3_bucket_region}"
+    },
+    {
+      "name": "FTP_USER_LOGIN",
+      "value": "${ftp_user_login}"
+    },
+    {
+      "name": "FTP_USER_PASSWORD",
+      "value": "${ftp_user_password}"
+    },
+    {
+      "name": "FTP_COMMAND_PORT",
+      "value": "${ftp_command_port}"
+    },
+    {
+      "name": "FTP_DATA_PORTS_FIRST",
+      "value": "${ftp_data_ports_first}"
+    },
+    {
+      "name": "FTP_DATA_PORTS_COUNT",
+      "value": "${ftp_data_ports_count}"
+    }]
+  }
+]
