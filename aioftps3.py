@@ -139,7 +139,7 @@ class S3PathIO():
     @universal_exception
     async def mkdir(self, path, *_, **__):
         context = self._context()
-        async with self.lock(write_to=[path], read_from=[]):
+        async with self.lock([path]):
             if await _exists(context, path):
                 raise Exception('{} already exists'.format(path))
 
@@ -148,7 +148,7 @@ class S3PathIO():
     @universal_exception
     async def rmdir(self, path):
         context = self._context()
-        async with self.lock(write_to=[path], read_from=[]):
+        async with self.lock([path]):
             if await _is_file(context, path):
                 raise Exception('{} is not a directory'.format(path))
 
@@ -160,7 +160,7 @@ class S3PathIO():
     @universal_exception
     async def unlink(self, path):
         context = self._context()
-        async with self.lock(write_to=[path], read_from=[]):
+        async with self.lock([path]):
             if await _is_dir(context, path):
                 raise Exception('{} is a directory'.format(path))
 
@@ -332,7 +332,7 @@ def _open_wb(context, lock, path):
         # APIs that query multipart uploads), so this all we need to wrap in a lock.
         # A bucket lifecycle policy can cleanup unfinished multipart uploads, so we
         # don't need to do it here
-        async with lock(write_to=[path], read_from=[]):
+        async with lock([path]):
             if await _is_file(context, path.parent):
                 raise Exception('{} is not a directory'.format(path.parent))
 
@@ -737,12 +737,12 @@ class _PathLock():
         ]
 
     @asynccontextmanager
-    async def __call__(self, write_to, read_from):
-        writable_paths = set(write_to)
+    async def __call__(self, paths):
+        writable_paths = set(paths)
         writable_locks = self._with_locks(writable_paths, lambda lock: lock.write())
 
-        ancestor_paths = _flatten(path.parents for path in write_to + read_from)
-        readable_paths = set(ancestor_paths + read_from) - writable_paths
+        ancestor_paths = _flatten(path.parents for path in paths)
+        readable_paths = set(ancestor_paths) - writable_paths
         readable_locks = self._with_locks(readable_paths, lambda lock: lock.read())
 
         sorted_locks = sorted(readable_locks + writable_locks, key=self._sort_key)
