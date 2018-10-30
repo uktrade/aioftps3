@@ -346,7 +346,8 @@ def _open_wb(context, lock, path):
             await start()
 
         async def __aexit__(self, exc_type, exc, traceback):
-            await end()
+            if exc_type is None:
+                await end()
 
         @staticmethod
         async def write(chunk):
