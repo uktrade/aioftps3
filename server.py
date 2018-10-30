@@ -42,16 +42,19 @@ def main():
         ),
     )
 
+    command_port = int(os.environ['FTP_COMMAND_PORT'])
+    data_ports_first = int(os.environ['FTP_DATA_PORTS_FIRST'])
+    data_ports_count = int(os.environ['FTP_DATA_PORTS_COUNT'])
     server = aioftp.Server(
         users=users,
         loop=loop,
         ssl=context,
         path_io_factory=aioftps3.s3_path_io_factory(
             session=session, credentials=credentials, bucket=bucket),
-        data_ports=range(8022, 8042),
+        data_ports=range(data_ports_first, data_ports_first + data_ports_count),
         block_size=64 * 1024 * 1024,
     )
-    loop.run_until_complete(server.start('0.0.0.0', 8021))
+    loop.run_until_complete(server.start('0.0.0.0', command_port))
 
     try:
         loop.run_forever()
