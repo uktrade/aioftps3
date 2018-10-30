@@ -41,7 +41,9 @@ docker run --rm -p 8021-8042:8021-8042 \
   -e AWS_SECRET_ACCESS_KEY=ommitted \
   -e AWS_S3_BUCKET_REGION=eu-west-1 \
   -e AWS_S3_BUCKET_HOST=s3-eu-west-1.amazon.aws.com \
-  -e AWS_S3_BUCKET_NAME=my-bucket-name
+  -e AWS_S3_BUCKET_NAME=my-bucket-name \
+  -e FTP_USER_LOGIN=user \
+  -e FTP_USER_PASSWORD=password \
   ftps-s3
 ```
 
