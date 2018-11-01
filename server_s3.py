@@ -16,10 +16,6 @@ import urllib
 import weakref
 import xml.etree.ElementTree as ET
 
-from aioftp.pathio import (
-    universal_exception,
-)
-
 
 # This must be between 5 and 2000MB
 MULTIPART_UPLOAD_MIN_BYTES = 1024 * 1024 * 25
@@ -43,16 +39,16 @@ Stat = namedtuple(
     ['st_size', 'st_mtime', 'st_ctime', 'st_nlink', 'st_mode'],
 )
 
-AwsCredentials = namedtuple('AwsCredentials', [
+S3Credentials = namedtuple('AwsCredentials', [
     'access_key_id', 'secret_access_key', 'pre_auth_headers',
 ])
 
-AwsS3Bucket = namedtuple('AwsS3Bucket', [
+S3Bucket = namedtuple('AwsS3Bucket', [
     'region', 'host', 'verify_certs', 'name',
 ])
 
-Context = namedtuple('Context', [
-    'session', 'credentials', 'bucket',
+S3Context = namedtuple('Context', [
+    'session', 'lock', 'credentials', 'bucket',
 ])
 
 ListKey = namedtuple('ListKey', [
@@ -64,12 +60,7 @@ ListPrefix = namedtuple('ListPrefix', [
 ])
 
 
-class S3Path(PurePosixPath):
-    ''' The purpose of this class is to be able to integrate with
-    code in aioftp that expects a Path instance, but be able to
-    attach more data that is returned from S3 List Objects which
-    we access from S3PathIO
-    '''
+class S3ListPath(PurePosixPath):
 
     def __new__(cls, *args, stat):
         self = super().__new__(cls, *args)
@@ -77,23 +68,10 @@ class S3Path(PurePosixPath):
         return self
 
 
-def s3_path_io_factory(session, credentials, bucket):
-
-    lock = _PathLock()
-
-    # The aioftp way of configuring the path with a "nursery" doesn't
-    # seem that configurable in terms of doing things per instance,
-    # so make our own that effectively bypasses it
-    def factory(*_, **__):
-        return S3PathIO(session, credentials, bucket, lock)
-
-    return factory
-
-
-def s3_path_io_secret_access_key_credentials(access_key_id, secret_access_key):
+def get_s3_secret_access_key_credentials(access_key_id, secret_access_key):
 
     async def get():
-        return AwsCredentials(
+        return S3Credentials(
             access_key_id=access_key_id,
             secret_access_key=secret_access_key,
             pre_auth_headers={},
@@ -102,8 +80,8 @@ def s3_path_io_secret_access_key_credentials(access_key_id, secret_access_key):
     return get
 
 
-def s3_path_io_bucket(region, host, verify_certs, name):
-    return AwsS3Bucket(
+def get_s3_bucket(region, host, verify_certs, name):
+    return S3Bucket(
         region=region,
         host=host,
         verify_certs=verify_certs,
@@ -111,87 +89,95 @@ def s3_path_io_bucket(region, host, verify_certs, name):
     )
 
 
-class S3PathIO():
+def get_s3_context(session, credentials, bucket):
+    return S3Context(
+        session=session,
+        lock=_PathLock(),
+        credentials=credentials,
+        bucket=bucket,
+    )
 
-    def __init__(self, session, credentials, bucket, lock):
-        self.session = session
-        self.credentials = credentials
-        self.bucket = bucket
-        self.lock = lock
 
-        # The aioftp's mechanism for state doesn't seem that
-        # configurable per instance, so we don't use it. However,
-        # it does expect a member called state
-        self.state = None
+async def s3_exists(context, path):
+    return await _exists(context, path)
 
-    @universal_exception
-    async def exists(self, path):
-        return await _exists(self._context(), path)
 
-    @universal_exception
-    async def is_dir(self, path):
-        return await _is_dir(self._context(), path)
+async def s3_is_dir(context, path):
+    return await _is_dir(context, path)
 
-    @universal_exception
-    async def is_file(self, path):
-        return await _is_file(self._context(), path)
 
-    @universal_exception
-    async def mkdir(self, path, *_, **__):
-        context = self._context()
-        async with self.lock([path]):
-            if await _exists(context, path):
-                raise Exception('{} already exists'.format(path))
+async def s3_is_file(context, path):
+    return await _is_file(context, path)
 
-            await _mkdir(context, path)
 
-    @universal_exception
-    async def rmdir(self, path):
-        context = self._context()
-        async with self.lock([path]):
-            if await _is_file(context, path):
-                raise Exception('{} is not a directory'.format(path))
+async def s3_mkdir(context, path):
+    async with context.lock([path]):
+        if await _exists(context, path):
+            raise Exception('{} already exists'.format(path))
 
-            if not await _is_dir(context, path):
-                raise Exception('{} does not exist'.format(path))
+        await _mkdir(context, path)
 
-            return await _rmdir(context, path)
 
-    @universal_exception
-    async def unlink(self, path):
-        context = self._context()
-        async with self.lock([path]):
-            if await _is_dir(context, path):
-                raise Exception('{} is a directory'.format(path))
+async def s3_rmdir(context, path):
+    async with context.lock([path]):
+        if await _is_file(context, path):
+            raise Exception('{} is not a directory'.format(path))
 
-            if not await _is_file(context, path):
-                raise Exception('{} does not exist'.format(path))
+        if not await _is_dir(context, path):
+            raise Exception('{} does not exist'.format(path))
 
-            return await _unlink(context, path)
+        return await _rmdir(context, path)
 
-    def list(self, path):
-        # We allow lists to see non-consistent changes: renames or deletes
-        # of folders with lots of files could be taking a while, and nothing
-        # too horrible will happen if there is a list half way through
-        return _list(self._context(), path)
 
-    @universal_exception
-    async def stat(self, path):
-        return path.stat
+async def s3_delete(context, path):
+    async with context.lock([path]):
+        if await _is_dir(context, path):
+            raise Exception('{} is a directory'.format(path))
 
-    def open(self, path, mode):
-        return OPENERS[mode](self._context(), self.lock, path)
+        if not await _is_file(context, path):
+            raise Exception('{} does not exist'.format(path))
 
-    @universal_exception
-    async def rename(self, source, destination):
-        raise NotImplementedError
+        return await _delete(context, path)
 
-    def _context(self):
-        return Context(
-            session=self.session,
-            credentials=self.credentials,
-            bucket=self.bucket,
-        )
+
+async def s3_list(context, path):
+    # We allow lists to see non-consistent changes: renames or deletes
+    # of folders with lots of files could be taking a while, and nothing
+    # too horrible will happen if there is a list half way through
+    if not await _is_dir(context, path):
+        raise Exception('{} is not a directory'.format(path))
+
+    return _list(context, path)
+
+
+def s3_get(context, path, chunk_size):
+    return _get(context, path, chunk_size)
+
+
+@asynccontextmanager
+async def s3_put(context, path):
+    async with _put(context, path) as write:
+        yield write
+
+
+async def s3_rename(_, __, ___):
+    raise NotImplementedError
+
+
+def _key(path):
+    key = \
+        '' if path == PurePosixPath('/') else \
+        path.relative_to(PurePosixPath('/')).as_posix()
+
+    return key
+
+
+def _dir_key(path):
+    key = \
+        '' if path == PurePosixPath('/') else \
+        path.relative_to(PurePosixPath('/')).as_posix() + '/'
+
+    return key
 
 
 async def _exists(context, path):
@@ -202,43 +188,38 @@ async def _exists(context, path):
 
 async def _is_dir(context, path):
     result = \
-        True if isinstance(path, S3Path) and path.stat.st_mode & DIR_MODE else \
-        True if path == PurePosixPath('.') else \
+        True if path == PurePosixPath('/') else \
         await _dir_exists(context, path)
     return result
 
 
 async def _is_file(context, path):
     result = \
-        True if isinstance(path, S3Path) and path.stat.st_mode & REG_MODE else \
-        False if path == PurePosixPath('.') else \
-        await _file_exists(context, path)
+        False if path == PurePosixPath('/') else \
+        await _file_exists(context, path) and not await _dir_exists(context, path)
     return result
 
 
 async def _file_exists(context, path):
-    key = path.as_posix()
-    response, _ = await _s3_request_full(context, 'HEAD', '/' + key, {}, {},
+    response, _ = await _s3_request_full(context, 'HEAD', '/' + _key(path), {}, {},
                                          b'', _hash(b''))
     return response.status == 200
 
 
 async def _dir_exists(context, path):
-    key = path.as_posix()
-    response, _ = await _s3_request_full(context, 'HEAD', '/' + key + S3_DIR_SUFFIX, {}, {},
+    response, _ = await _s3_request_full(context, 'HEAD', '/' + _dir_key(path), {}, {},
                                          b'', _hash(b''))
     return response.status == 200
 
 
 async def _mkdir(context, path):
-    key = path.as_posix() + '/'
-    response, _ = await _s3_request_full(context, 'PUT', '/' + key, {}, {}, b'', _hash(b''))
+    response, _ = await _s3_request_full(context, 'PUT', '/' + _dir_key(path), {}, {},
+                                         b'', _hash(b''))
     response.raise_for_status()
 
 
 async def _rmdir(context, path):
-    key_prefix = path.as_posix() + '/'
-    keys = await _list_descendant_keys(context, key_prefix)
+    keys = await _list_descendant_keys(context, _dir_key(path))
 
     def delete_sort_key(key):
         # Delete innermost files and folders first
@@ -251,23 +232,18 @@ async def _rmdir(context, path):
 
 
 async def _list(context, path):
-    key_prefix = \
-        '' if path == PurePosixPath('.') else \
-        path.as_posix() + S3_DIR_SUFFIX
-
-    for child_path in await _list_immediate_child_paths(context, key_prefix):
+    for child_path in await _list_immediate_child_paths(context, _dir_key(path)):
         yield child_path
 
 
-async def _unlink(context, path):
-    key = path.as_posix()
-    response, _ = await _s3_request_full(context, 'DELETE', '/' + key, {}, {}, b'', _hash(b''))
+async def _delete(context, path):
+    response, _ = await _s3_request_full(context, 'DELETE', '/' + _key(path), {}, {},
+                                         b'', _hash(b''))
     response.raise_for_status()
 
 
-def _open_wb(context, lock, path):
-    key = path.as_posix()
-
+@asynccontextmanager
+async def _put(context, path):
     upload_id = None
     part_uploads = []
 
@@ -278,7 +254,7 @@ def _open_wb(context, lock, path):
     async def start():
         nonlocal upload_id
         new_part_init()
-        upload_id = await _multipart_upload_start(context, key)
+        upload_id = await _multipart_upload_start(context, path)
 
     def new_part_init():
         nonlocal part_length
@@ -312,7 +288,7 @@ def _open_wb(context, lock, path):
     def upload_part():
         part_number = str(len(part_uploads) + 1)
         upload_coro = _multipart_upload_part(
-            context, key, upload_id,
+            context, path, upload_id,
             part_number, part_length, part_chunks, part_payload_hash.hexdigest())
         part_uploads.append(asyncio.create_task(upload_coro))
         new_part_init()
@@ -332,7 +308,7 @@ def _open_wb(context, lock, path):
         # APIs that query multipart uploads), so this all we need to wrap in a lock.
         # A bucket lifecycle policy can cleanup unfinished multipart uploads, so we
         # don't need to do it here
-        async with lock([path]):
+        async with context.lock([path]):
             if await _is_file(context, path.parent):
                 raise Exception('{} is not a directory'.format(path.parent))
 
@@ -341,37 +317,26 @@ def _open_wb(context, lock, path):
 
             # Overwrites are allowed, so there is no need to check if the file aleady exists
 
-            await _multipart_upload_complete(context, key, upload_id, indexes_and_etags)
+            await _multipart_upload_complete(context, path, upload_id, indexes_and_etags)
 
         new_part_init()
 
-    class WritableFile():
-
-        async def __aenter__(self):
-            await start()
-
-        async def __aexit__(self, exc_type, exc, traceback):
-            if exc_type is None:
-                await end()
-
-        @staticmethod
-        async def write(chunk):
-            await write(chunk)
-
-    return WritableFile()
+    await start()
+    yield write
+    await end()
 
 
-async def _multipart_upload_start(context, key):
+async def _multipart_upload_start(context, path):
     query = {
         'uploads': '',
     }
-    response, body = await _s3_request_full(context, 'POST', '/' + key, query, {},
+    response, body = await _s3_request_full(context, 'POST', '/' + _key(path), query, {},
                                             b'', _hash(b''))
     response.raise_for_status()
     return re.search(b'<UploadId>(.*)</UploadId>', body)[1].decode('utf-8')
 
 
-async def _multipart_upload_part(context, key, upload_id, part_number, part_length,
+async def _multipart_upload_part(context, path, upload_id, part_number, part_length,
                                  part_chunks, part_payload_hash):
     async def aiter(iterable):
         for item in iterable:
@@ -384,7 +349,7 @@ async def _multipart_upload_part(context, key, upload_id, part_number, part_leng
         'uploadId': upload_id,
     }
     headers = {'Content-Length': str(part_length)}
-    response, _ = await _s3_request_full(context, 'PUT', '/' + key, query, headers,
+    response, _ = await _s3_request_full(context, 'PUT', '/' + _key(path), query, headers,
                                          part_payload, part_payload_hash)
     response.raise_for_status()
     part_etag = response.headers['ETag']
@@ -392,7 +357,7 @@ async def _multipart_upload_part(context, key, upload_id, part_number, part_leng
     return (part_number, part_etag)
 
 
-async def _multipart_upload_complete(context, key, upload_id, part_numbers_and_etags):
+async def _multipart_upload_complete(context, path, upload_id, part_numbers_and_etags):
 
     payload = (
         '<CompleteMultipartUpload>' +
@@ -406,43 +371,28 @@ async def _multipart_upload_complete(context, key, upload_id, part_numbers_and_e
     query = {
         'uploadId': upload_id,
     }
-    response, _ = await _s3_request_full(context, 'POST', '/' + key, query, {},
+    response, _ = await _s3_request_full(context, 'POST', '/' + _key(path), query, {},
                                          payload, payload_hash)
     response.raise_for_status()
 
 
-def _open_rb(context, _, path):
+async def _get(context, path, chunk_size):
     # S3 GETs are atomic, so we don't need any additional locking
     # It will either fail with a 404, or return a consistent object
 
-    async def iter_data(count):
-        key = path.as_posix()
-        async with await _s3_request(context, 'GET', '/' + key, {}, {},
-                                     b'', _hash(b'')) as response:
-            response.raise_for_status()
-            async for data in response.content.iter_chunked(count):
-                yield data
-
-    class ReadableFile():
-
-        async def __aenter__(self):
-            pass
-
-        async def __aexit__(self, exc_type, exc, traceback):
-            pass
-
-        @staticmethod
-        def iter_by_block(count):
-            return iter_data(count)
-
-    return ReadableFile()
+    async with await _s3_request(context, 'GET', '/' + _key(path), {}, {},
+                                 b'', _hash(b'')) as response:
+        response.raise_for_status()
+        async for data in response.content.iter_chunked(chunk_size):
+            yield data
 
 
 async def _list_immediate_child_paths(context, key_prefix):
-    list_keys, list_prefixes = await _list_keys(context, key_prefix, S3_DIR_SUFFIX)
+    epoch = datetime.utcfromtimestamp(0)
+    list_prefixes, list_keys = await _list_keys(context, key_prefix, S3_DIR_SUFFIX)
 
     return [
-        S3Path(list_key.key, stat=Stat(
+        S3ListPath(list_key.key, stat=Stat(
             st_size=list_key.size,
             st_mtime=list_key.last_modified,
             st_ctime=list_key.last_modified,
@@ -452,14 +402,14 @@ async def _list_immediate_child_paths(context, key_prefix):
         for list_key in list_keys
         if list_key.key[-1] != S3_DIR_SUFFIX
     ] + [
-        S3Path(list_prefix.prefix, stat=Stat(
+        S3ListPath(list_prefix.prefix, stat=Stat(
             # Not completely sure what size should be for a directory
             st_size=0,
             # Can't quite work out an efficient way of working out
             # any sort of meaningful modification/creation time for a
             # directory
-            st_mtime=0,
-            st_ctime=0,
+            st_mtime=epoch,
+            st_ctime=epoch,
             st_nlink=1,
             st_mode=DIR_MODE,
         ))
@@ -473,7 +423,6 @@ async def _list_descendant_keys(context, key_prefix):
 
 
 async def _list_keys(context, key_prefix, delimeter):
-    epoch = datetime.utcfromtimestamp(0)
     common_query = {
         'max-keys': '1000',
         'list-type': '2',
@@ -516,10 +465,8 @@ async def _list_keys(context, key_prefix, delimeter):
                 last_modified_str = _first_child_text(element, f'{namespace}LastModified')
                 last_modified_datetime = datetime.strptime(
                     last_modified_str, '%Y-%m-%dT%H:%M:%S.%fZ')
-                last_modified_seconds = int(
-                    (last_modified_datetime - epoch).total_seconds())
                 size = int(_first_child_text(element, f'{namespace}Size'))
-                keys.append(ListKey(key=key, last_modified=last_modified_seconds, size=size))
+                keys.append(ListKey(key=key, last_modified=last_modified_datetime, size=size))
 
             if element.tag == f'{namespace}CommonPrefixes':
                 # Prefixes end in '/', which we strip off
@@ -537,7 +484,7 @@ async def _list_keys(context, key_prefix, delimeter):
         keys.extend(keys_page)
         prefixes.extend(prefixes_page)
 
-    return keys, prefixes
+    return prefixes, keys
 
 
 def _hash(payload):
@@ -629,12 +576,6 @@ def _aws_sig_v4_headers(access_key_id, secret_access_key, pre_auth_headers,
         'Authorization': f'{algorithm} Credential={access_key_id}/{credential_scope}, '
                          f'SignedHeaders={signed_headers}, Signature=' + signature(),
     }
-
-
-OPENERS = {
-    'wb': _open_wb,
-    'rb': _open_rb,
-}
 
 
 class _ReadWaiter(asyncio.Future):
