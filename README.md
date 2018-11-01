@@ -1,6 +1,6 @@
 # aioftps3
 
-FTP in front of AWS S3, using [asyncio](https://docs.python.org/3/library/asyncio.html), [aioftp](https://github.com/aio-libs/aioftp) and [aiohttp](https://github.com/aio-libs/aiohttp).
+FTP in front of AWS S3, using [asyncio](https://docs.python.org/3/library/asyncio.html), and [aiohttp](https://github.com/aio-libs/aiohttp).
 
 
 ## Running tests
@@ -26,7 +26,7 @@ and then to run the tests themselves.
 
 - For uploading files, hashes are computed incrementally as data comes in in order to not block the event loop just before uploads to S3.
 
-- As few dependencies as is reasonable: aioftp, aiohttp, and their dependencies. Boto 3 is _not_ used.
+- As few dependencies as is reasonable: aiohttp and its dependencies. Boto 3 is _not_ used.
 
 - May not behave well if upload to the server is faster than its upload to S3.
 

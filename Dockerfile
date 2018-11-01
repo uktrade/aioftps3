@@ -12,12 +12,14 @@ RUN \
     python3 -m ensurepip && \
     pip3 install pip==18.01 && \
     pip3 install \
-        aioftp==0.12.0 \
         aiohttp==3.4.4
 
-COPY aioftps3.py /usr/local/lib/python3.7/site-packages/aioftps3.py
-COPY server.py /server.py
 COPY entrypoint.sh /entrypoint.sh
+COPY server.py /server.py
+COPY server_logger.py /server_logger.py
+COPY server_s3.py /server_s3.py
+COPY server_socket.py /server_socket.py
+COPY server_utils.py /server_utils.py
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python3", "server.py"]

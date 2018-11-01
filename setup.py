@@ -19,7 +19,6 @@ setuptools.setup(
         'aioftps3',
     ],
     install_requires=[
-        'aioftp',
         'aiohttp',
     ],
     classifiers=[
