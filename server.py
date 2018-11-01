@@ -53,6 +53,7 @@ def main():
             session=session, credentials=credentials, bucket=bucket),
         data_ports=range(data_ports_first, data_ports_first + data_ports_count),
         block_size=64 * 1024 * 1024,
+        wait_future_timeout=10,
     )
     loop.run_until_complete(server.start('0.0.0.0', command_port))
 
