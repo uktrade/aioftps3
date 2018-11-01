@@ -20,8 +20,8 @@ resource "aws_security_group_rule" "app_service_ingress_command_from_whitelist" 
   protocol  = "tcp"
 }
 
-resource "aws_security_group_rule" "app_service_ingress_healthcheck_from_nlb_public" {
-  description = "ingress-healthcheck-from-nlb-public"
+resource "aws_security_group_rule" "app_service_ingress_healthcheck_from_nlb_external" {
+  description = "ingress-healthcheck-from-nlb-external"
 
   security_group_id = "${aws_security_group.app_service.id}"
   cidr_blocks       = ["${aws_subnet.public.cidr_block}"]
@@ -32,8 +32,8 @@ resource "aws_security_group_rule" "app_service_ingress_healthcheck_from_nlb_pub
   protocol  = "tcp"
 }
 
-resource "aws_security_group_rule" "app_service_ingress_healthcheck_from_nlb_private" {
-  description = "ingress-healthcheck-from-nlb-private"
+resource "aws_security_group_rule" "app_service_ingress_healthcheck_from_nlb_internal" {
+  description = "ingress-healthcheck-from-nlb-internal"
 
   security_group_id = "${aws_security_group.app_service.id}"
   cidr_blocks       = ["${aws_subnet.private.cidr_block}"]

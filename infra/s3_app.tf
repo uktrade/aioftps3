@@ -26,6 +26,7 @@ data "aws_iam_policy_document" "app" {
       "s3:*",
     ]
     resources = [
+      "arn:aws:s3:::${aws_s3_bucket.app.id}",
       "arn:aws:s3:::${aws_s3_bucket.app.id}/*",
     ]
     condition {
@@ -44,6 +45,12 @@ resource "aws_iam_user" "app_s3" {
 
 resource "aws_iam_access_key" "app_s3" {
   user = "${aws_iam_user.app_s3.name}"
+}
+
+resource "aws_iam_user_policy" "app_s3" {
+  name   = "ftps3-app-s3"
+  user   = "${aws_iam_user.app_s3.name}"
+  policy = "${data.aws_iam_policy_document.app_s3.json}"
 }
 
 data "aws_iam_policy_document" "app_s3" {

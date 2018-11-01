@@ -10,9 +10,13 @@ variable "ip_whitelist" {
   type = "list"
 }
 
+variable "public_nlb_eip_allocation_id" {}
 variable "nat_gateway_id" {}
 variable "internet_gateway_id" {}
+
 variable "public_subnet_cidr" {}
+variable "private_subnet_cidr" {}
+variable "private_subnet_vpc_peering_connection_id" {}
 
 # We must know all the available IPs for the subnet to pre-register them
 # with the target groups. Terraform doesn't have enough functions to work
@@ -20,10 +24,9 @@ variable "public_subnet_cidr" {}
 #
 # Note that subnet_first_host_index would typically be 4 and
 # subnet_count_hosts would be size of subnet - 5 due to AWS internal use
-variable "private_subnet_cidr" {}
-variable "private_subnet_hosts_first" {}
-variable "private_subnet_hosts_count" {}
-variable "private_subnet_vpc_peering_connection_id" {}
+variable "app_subnet_cidr" {}
+variable "app_subnet_hosts_first" {}
+variable "app_subnet_hosts_count" {}
 
 variable "app_container_image" {}
 variable "app_bucket" {}
@@ -41,9 +44,9 @@ locals {
 }
 
 data "null_data_source" "app_ips" {
-  count = "${var.private_subnet_hosts_count}"
+  count = "${var.app_subnet_hosts_count}"
   inputs = {
-    ip = "${cidrhost(var.private_subnet_cidr, var.private_subnet_hosts_first + count.index)}"
+    ip = "${cidrhost(var.app_subnet_cidr, var.app_subnet_hosts_first + count.index)}"
   }
 }
 
