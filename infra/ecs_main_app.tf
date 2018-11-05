@@ -1,6 +1,6 @@
 
 resource "aws_ecs_service" "app" {
-  name            = "ftps3-app"
+  name            = "${var.name}-app"
   cluster         = "${aws_ecs_cluster.main.id}"
   task_definition = "${aws_ecs_task_definition.app.arn}"
   desired_count   = 1
@@ -14,7 +14,7 @@ resource "aws_ecs_service" "app" {
 }
 
 resource "aws_ecs_task_definition" "app" {
-  family                   = "ftps3-app"
+  family                   = "${var.name}-app"
   container_definitions    = "${data.template_file.app_container_definitions.rendered}"
   execution_role_arn       = "${aws_iam_role.app_task_execution.arn}"
   task_role_arn            = "${aws_iam_role.app_task.arn}"
@@ -25,7 +25,7 @@ resource "aws_ecs_task_definition" "app" {
 }
 
 resource "aws_iam_role" "app_task_execution" {
-  name               = "ftps3-app-task-execution"
+  name               = "${var.name}-app-task-execution"
   path               = "/"
   assume_role_policy = "${data.aws_iam_policy_document.app_task_execution_assume_role.json}"
 }
@@ -47,7 +47,7 @@ resource "aws_iam_role_policy_attachment" "app_task_execution" {
 }
 
 resource "aws_iam_policy" "app_task_execution" {
-  name        = "ftps3-app-task-execution"
+  name        = "${var.name}-app-task-execution"
   path        = "/"
   policy       = "${data.aws_iam_policy_document.app_task_execution.json}"
 }
@@ -66,7 +66,7 @@ data "aws_iam_policy_document" "app_task_execution" {
 }
 
 resource "aws_iam_role" "app_task" {
-  name               = "ftps3-app-task"
+  name               = "${var.name}-app-task"
   path               = "/"
   assume_role_policy = "${data.aws_iam_policy_document.app_task.json}"
 }
@@ -110,6 +110,6 @@ data "template_file" "app_container_definitions" {
 }
 
 resource "aws_cloudwatch_log_group" "aws_ecs_task_definition_app" {
-  name              = "ftps3-app"
+  name              = "${var.name}-app"
   retention_in_days = "3653"
 }

@@ -1,5 +1,5 @@
 resource "aws_lb" "app_public" {
-  name               = "ftps3-app-public"
+  name               = "${var.name}-app-public"
   internal           = false
   load_balancer_type = "network"
 

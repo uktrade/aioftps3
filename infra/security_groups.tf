@@ -1,10 +1,10 @@
 resource "aws_security_group" "app_service" {
-  name        = "ftps3-app-service"
-  description = "ftps3-app-service"
+  name        = "${var.name}-app-service"
+  description = "${var.name}-app-service"
   vpc_id      = "${data.aws_vpc.main.id}"
 
   tags {
-    Name = "ftps3-app-service"
+    Name = "${var.name}-app-service"
   }
 }
 

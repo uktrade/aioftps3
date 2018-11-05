@@ -1,4 +1,7 @@
 data "aws_region" "aws_region" {}
+
+variable "name" {}
+
 variable "availability_zone" {}
 variable "vpc_id" {}
 

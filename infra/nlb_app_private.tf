@@ -1,5 +1,5 @@
 resource "aws_lb" "app_private" {
-  name               = "ftps3-app-private"
+  name               = "${var.name}-app-private"
   internal           = true
   load_balancer_type = "network"
   subnets            = ["${aws_subnet.private.id}"]

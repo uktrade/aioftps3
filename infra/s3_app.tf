@@ -40,7 +40,7 @@ data "aws_iam_policy_document" "app" {
 }
 
 resource "aws_iam_user" "app_s3" {
-  name = "ftps3-app-s3"
+  name = "${var.name}-app-s3"
 }
 
 resource "aws_iam_access_key" "app_s3" {
@@ -48,7 +48,7 @@ resource "aws_iam_access_key" "app_s3" {
 }
 
 resource "aws_iam_user_policy" "app_s3" {
-  name   = "ftps3-app-s3"
+  name   = "${var.name}-app-s3"
   user   = "${aws_iam_user.app_s3.name}"
   policy = "${data.aws_iam_policy_document.app_s3.json}"
 }

@@ -27,14 +27,14 @@ resource "aws_subnet" "public" {
   availability_zone = "${var.availability_zone}"
 
   tags {
-    Name = "ftps3-public-${var.availability_zone}"
+    Name = "${var.name}-public-${var.availability_zone}"
   }
 }
 
 resource "aws_route_table" "public" {
   vpc_id = "${data.aws_vpc.main.id}"
   tags {
-    Name = "ftps3-public"
+    Name = "${var.name}-public"
   }
 }
 
@@ -56,14 +56,14 @@ resource "aws_subnet" "app" {
   availability_zone = "${var.availability_zone}"
 
   tags {
-    Name = "ftps3-app-${var.availability_zone}"
+    Name = "${var.name}-app-${var.availability_zone}"
   }
 }
 
 resource "aws_route_table" "app" {
   vpc_id = "${data.aws_vpc.main.id}"
   tags {
-    Name = "ftps3-app"
+    Name = "${var.name}-app"
   }
 }
 
@@ -88,14 +88,14 @@ resource "aws_subnet" "private" {
   availability_zone = "${var.availability_zone}"
 
   tags {
-    Name = "ftps3-private-${var.availability_zone}"
+    Name = "${var.name}-private-${var.availability_zone}"
   }
 }
 
 resource "aws_route_table" "private" {
   vpc_id = "${data.aws_vpc.main.id}"
   tags {
-    Name = "ftps3-private"
+    Name = "${var.name}-private"
   }
 }
 
