@@ -382,11 +382,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
         await shutdown_socket(loop, sock)
 
 
-async def async_main(loop, logger):
-    ssl_context = SSLContext(PROTOCOL_TLSv1_2)
-    ssl_context.load_cert_chain(f'{os.environ["HOME"]}/ssl.crt',
-                                keyfile=f'{os.environ["HOME"]}/ssl.key')
-
+async def async_main(loop, logger, ssl_context):
     command_port = int(os.environ['FTP_COMMAND_PORT'])
     data_ports_first = int(os.environ['FTP_DATA_PORTS_FIRST'])
     data_ports_count = int(os.environ['FTP_DATA_PORTS_COUNT'])
@@ -432,7 +428,52 @@ async def async_main(loop, logger):
         logger.debug('Server closed.')
 
 
+# We have an entirely separate port for healthchecks from the NLB. Although
+# this slightly defeats the purpose of healthchecks...
+#
+# - We're going to have some other healthcheck triggered form Pingdom,
+#   checking if the server really works in terms of doing things with FTP.
+# - There are a lot of healthcheck connections per second...
+#
+#     (1 [command port] + ? [# data ports]) x 2 [# NLBs] x AWS-defined)
+#
+#   and I'm getting concerned that docker/Fargate/NLB doesn't like it, and if
+#   the healthcheck is on the command port, concerned that this can affect
+#   real connections (seeing unexplained disconnections)
+# - Actually the more complex things, which are more likely to go wrong, are
+#   the data ports for PASV mode, which just allowing TCP connections doesn't
+#   check.
+# - It can have a null logger, which doesn't log anything, and so eases
+#   debugging on the real connections.
+# - It means we only have to open up the healthcheck port from the subnets
+#   that have the NLBs, rather the command port
+#
+# Maybe this isn't the best long term strategy, but ok for now.
+async def healthcheck(loop, logger, ssl_context):
+
+    async def on_healthcheck_client_connect(_, loop, __, sock):
+        await shutdown_socket(loop, sock)
+
+    healthcheck_port = int(os.environ['HEALTHCHECK_PORT'])
+    ssl_context = None
+    try:
+        await server(logger, loop, ssl_context, healthcheck_port, on_healthcheck_client_connect)
+    except asyncio.CancelledError:
+        pass
+
+
 def main():
+    loop = asyncio.get_event_loop()
+
+    ssl_context = SSLContext(PROTOCOL_TLSv1_2)
+    ssl_context.load_cert_chain(f'{os.environ["HOME"]}/ssl.crt',
+                                keyfile=f'{os.environ["HOME"]}/ssl.key')
+
+    healthcheck_logger = logging.getLogger('healthcheck')
+    healthcheck_logger.setLevel(logging.WARNING)
+    healthcheck_logger_with_context = get_logger_with_context(healthcheck_logger, 'healthcheck')
+    loop.create_task(healthcheck(loop, healthcheck_logger_with_context, ssl_context))
+
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
@@ -440,10 +481,8 @@ def main():
     handler.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
-    loop = asyncio.get_event_loop()
-
     logger_with_context = get_logger_with_context(logger, 'ftps3')
-    main_task = loop.create_task(async_main(loop, logger_with_context))
+    main_task = loop.create_task(async_main(loop, logger_with_context, ssl_context))
     loop.add_signal_handler(signal.SIGINT, main_task.cancel)
     loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
 

@@ -25,7 +25,7 @@ resource "aws_lb_target_group" "app_private_command" {
 
   health_check {
     interval = 10
-    port = "${var.ftp_command_port}"
+    port = "${var.healthcheck_port}"
     protocol = "TCP"
     healthy_threshold = 2
     unhealthy_threshold = 2
@@ -58,7 +58,7 @@ resource "aws_lb_target_group" "app_private_data" {
 
   health_check {
     interval = 10
-    port = "${var.ftp_command_port}"
+    port = "${var.healthcheck_port}"
     protocol = "TCP"
     healthy_threshold = 2
     unhealthy_threshold = 2

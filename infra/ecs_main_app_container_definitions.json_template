@@ -53,6 +53,10 @@
     {
       "name": "FTP_DATA_PORTS_COUNT",
       "value": "${ftp_data_ports_count}"
+    },
+    {
+      "name": "HEALTHCHECK_PORT",
+      "value": "${healthcheck_port}"
     }]
   }
 ]
