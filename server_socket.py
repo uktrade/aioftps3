@@ -78,7 +78,7 @@ async def server(logger, loop, ssl_context, port, client_handler):
     try:
         with logged(logger, 'Listening for clients', []):
             while True:
-                client_sock, address = await loop.sock_accept(sock)
+                client_sock, address = await sock_accept(loop, sock)
                 unique_id = str(uuid4())[:8]
                 client_logger = get_child_logger(logger, unique_id)
                 client_logger.debug('Connection from %s', address)
@@ -91,6 +91,56 @@ async def server(logger, loop, ssl_context, port, client_handler):
         logger.exception('Exception listening for socket')
     finally:
         sock.close()
+
+
+async def sock_accept(loop, sock):
+    fileno = sock.fileno()
+    try:
+        return await _sock_accept(loop, sock)
+    except CancelledError:
+        loop.remove_reader(fileno)
+        raise
+
+
+def _sock_accept(loop, sock):
+    fileno = sock.fileno()
+    done = Future()
+
+    def accept_without_reader():
+        try:
+            conn, address = sock.accept()
+            conn.setblocking(False)
+        except BlockingIOError:
+            add_reader()
+        except BaseException as exception:
+            if not done.cancelled():
+                done.set_exception(exception)
+        else:
+            done.set_result((conn, address))
+
+    def accept_with_reader():
+        try:
+            conn, address = sock.accept()
+            conn.setblocking(False)
+        except BlockingIOError:
+            pass
+        except BaseException as exception:
+            remove_reader()
+            if not done.cancelled():
+                done.set_exception(exception)
+        else:
+            remove_reader()
+            done.set_result((conn, address))
+
+    def add_reader():
+        loop.add_reader(fileno, accept_with_reader)
+
+    def remove_reader():
+        loop.remove_reader(fileno)
+
+    accept_without_reader()
+
+    return done
 
 
 async def shutdown_socket(loop, sock):
