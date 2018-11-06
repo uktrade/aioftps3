@@ -94,12 +94,12 @@ async def server(logger, loop, ssl_context, port, client_handler):
 
 
 async def shutdown_socket(loop, sock):
-    incoming = memoryview(bytearray(1))
+    incoming = memoryview(bytearray(128))
 
     try:
         sock.shutdown(SHUT_RDWR)
         while True:
-            await recv(loop, lambda: sock, 1, incoming)
+            await recv(loop, lambda: sock, 128, incoming)
     except BaseException:
         pass
 
