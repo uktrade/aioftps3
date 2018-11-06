@@ -156,7 +156,7 @@ def ssl_unwrap_socket(loop, ssl_sock, original_sock):
         unwrap()
 
     def unwrap_with_writer():
-        loop.remote_writer(fileno)
+        loop.remove_writer(fileno)
         unwrap()
 
     unwrap()
