@@ -90,7 +90,7 @@ data "template_file" "app_container_definitions" {
     container_name   = "${local.app_container_name}"
     container_cpu    = "${local.app_container_cpu}"
     container_memory = "${local.app_container_memory}"
-    container_ports  = "{\"containerPort\":${var.ftp_command_port}},${join(",", formatlist("{\"containerPort\":%s}", aws_lb_listener.app_public_data.*.port))}"
+    container_ports  = "{\"containerPort\":${var.healthcheck_port}},{\"containerPort\":${var.ftp_command_port}},${join(",", formatlist("{\"containerPort\":%s}", aws_lb_listener.app_public_data.*.port))}"
 
     log_group  = "${aws_cloudwatch_log_group.aws_ecs_task_definition_app.name}"
     log_region = "${data.aws_region.aws_region.name}"
@@ -106,6 +106,8 @@ data "template_file" "app_container_definitions" {
     ftp_command_port     = "${var.ftp_command_port}"
     ftp_data_ports_first = "${var.ftp_data_ports_first}"
     ftp_data_ports_count = "${var.ftp_data_ports_count}"
+
+    healthcheck_port = "${var.healthcheck_port}"
   }
 }
 
