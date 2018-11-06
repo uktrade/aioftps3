@@ -341,6 +341,8 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
             (command == 'AUTH' and not is_ssl and not is_authenticated and not user) or \
             (command == 'USER' and is_ssl and not is_authenticated and not user) or \
             (command == 'PASS' and is_ssl and not is_authenticated and user) or \
+            (command == 'PROT' and is_ssl and not is_authenticated and not user) or \
+            (command == 'PBSZ' and is_ssl and not is_authenticated and not user) or \
             (command not in {'AUTH', 'USER', 'PASS'} and is_ssl and is_authenticated)
 
         return is_good
