@@ -49,7 +49,8 @@ docker run --rm -p 8021-8042:8021-8042 \
   -e FTP_USER_PASSWORD=password \
   -e FTP_COMMAND_PORT=8021 \
   -e FTP_DATA_PORTS_FIRST=4001 \
-  -e FTP_DATA_PORTS_COUNT=2
+  -e FTP_DATA_PORTS_COUNT=2 \
+  -e HEALTHCHECK_PORT=8022
   ftps-s3
 ```
 

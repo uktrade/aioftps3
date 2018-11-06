@@ -27,8 +27,8 @@ resource "aws_security_group_rule" "app_service_ingress_healthcheck_from_nlb_ext
   cidr_blocks       = ["${aws_subnet.public.cidr_block}"]
 
   type      = "ingress"
-  from_port = "${var.ftp_command_port}"
-  to_port   = "${var.ftp_command_port}"
+  from_port = "${var.healthcheck_port}"
+  to_port   = "${var.healthcheck_port}"
   protocol  = "tcp"
 }
 
@@ -39,8 +39,8 @@ resource "aws_security_group_rule" "app_service_ingress_healthcheck_from_nlb_int
   cidr_blocks       = ["${aws_subnet.private.cidr_block}"]
 
   type      = "ingress"
-  from_port = "${var.ftp_command_port}"
-  to_port   = "${var.ftp_command_port}"
+  from_port = "${var.healthcheck_port}"
+  to_port   = "${var.healthcheck_port}"
   protocol  = "tcp"
 }
 

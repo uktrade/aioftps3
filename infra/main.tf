@@ -40,6 +40,8 @@ variable "ftp_command_port" {}
 variable "ftp_data_ports_first" {}
 variable "ftp_data_ports_count" {}
 
+variable "healthcheck_port" {}
+
 locals {
   app_container_name    = "ftps3-app"
   app_container_memory  = 2048
