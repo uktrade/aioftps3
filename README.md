@@ -47,6 +47,9 @@ docker run --rm -p 8021-8042:8021-8042 \
   -e AWS_S3_BUCKET_NAME=my-bucket-name \
   -e FTP_USER_LOGIN=user \
   -e FTP_USER_PASSWORD=password \
+  -e FTP_COMMAND_PORT=8021 \
+  -e FTP_DATA_PORTS_FIRST=4001 \
+  -e FTP_DATA_PORTS_COUNT=2
   ftps-s3
 ```
 
