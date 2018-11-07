@@ -49,7 +49,7 @@ class SocketClosed(Exception):
     pass
 
 
-async def server(logger, loop, ssl_context, port, client_handler):
+async def server(logger, loop, ssl_context, port, client_handler, on_cancel):
 
     with logged(logger, 'Starting server on %s', [port]):
         sock = socket(family=AF_INET, type=SOCK_STREAM, proto=IPPROTO_TCP)
@@ -84,8 +84,7 @@ async def server(logger, loop, ssl_context, port, client_handler):
                 client_logger.debug('Connection from %s', address)
                 tasks.add(loop.create_task(client_task(client_logger, client_sock)))
     except CancelledError:
-        for task in list(tasks):
-            task.cancel()
+        await on_cancel(tasks)
         raise
     except BaseException:
         logger.exception('Exception listening for socket')
