@@ -90,7 +90,11 @@ async def server(logger, loop, ssl_context, port, client_handler):
     except BaseException:
         logger.exception('Exception listening for socket')
     finally:
-        sock.close()
+        # Shutdown here and _not_ close. From testing, it looks like shutdown
+        # means the port can be listented to again immediately, and and the
+        # file descriptor is not released too soon, which would cause later
+        # connections using that file descriptor to not work properly
+        sock.shutdown(SHUT_RDWR)
 
 
 async def sock_accept(loop, sock):
