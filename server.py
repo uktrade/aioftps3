@@ -285,20 +285,26 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
         nonlocal data_server
 
         async def on_data_client_connect(data_client_logger, __, ____, data_sock):
-            # Raise if we have an unexpected data client
+            # Raise if we have an unexpected data client, but keeping the
+            # server running to not interfere withthe running connection
             func = data_funcs.get_nowait()
 
-            with logged(data_client_logger, 'Performing TLS handshake', []):
-                ssl_data_sock = ssl_get_socket(ssl_context, data_sock)
-                await ssl_complete_handshake(loop, ssl_data_sock)
-
             try:
-                await func(ssl_data_sock)
+
+                with logged(data_client_logger, 'Performing TLS handshake', []):
+                    ssl_data_sock = ssl_get_socket(ssl_context, data_sock)
+                    await ssl_complete_handshake(loop, ssl_data_sock)
+
+                try:
+                    await func(ssl_data_sock)
+                finally:
+                    data_funcs.task_done()
+                    await command_responses.put(b'226 Closing data connection.')
+                    data_sock = await ssl_unwrap_socket(loop, ssl_data_sock, data_sock)
+                    await shutdown_socket(loop, data_sock)
+
             finally:
-                data_funcs.task_done()
-                await command_responses.put(b'226 Closing data connection.')
-                data_sock = await ssl_unwrap_socket(loop, ssl_data_sock, data_sock)
-                await shutdown_socket(loop, data_sock)
+                data_server.cancel()
 
         def on_data_server_close(_):
             nonlocal data_port
