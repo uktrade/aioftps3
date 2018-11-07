@@ -1,12 +1,10 @@
 import asyncio
-from collections import (
-    deque,
-)
 import logging
 from pathlib import (
     PurePosixPath,
 )
 import os
+import random
 import signal
 from ssl import (
     PROTOCOL_TLSv1_2,
@@ -328,11 +326,12 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
             nonlocal data_port
             nonlocal data_server
 
-            data_ports.append(data_port)
+            data_ports.add(data_port)
             data_port = None
             data_server = None
 
-        data_port = data_ports.popleft()
+        data_port = random.sample(data_ports, 1)[0]
+        data_ports.remove(data_port)
         data_logger = get_child_logger(logger, 'data')
         data_server = loop.create_task(server(data_logger, loop, ssl_context, data_port,
                                               on_data_client_connect, on_data_server_cancel))
@@ -414,7 +413,7 @@ async def async_main(loop, logger, ssl_context):
     command_port = int(os.environ['FTP_COMMAND_PORT'])
     data_ports_first = int(os.environ['FTP_DATA_PORTS_FIRST'])
     data_ports_count = int(os.environ['FTP_DATA_PORTS_COUNT'])
-    data_ports = deque(range(data_ports_first, data_ports_first + data_ports_count))
+    data_ports = set(range(data_ports_first, data_ports_first + data_ports_count))
 
     session = aiohttp.ClientSession(loop=loop)
     credentials = get_s3_secret_access_key_credentials(
