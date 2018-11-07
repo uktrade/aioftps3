@@ -69,8 +69,12 @@ DATA_CHUNK_SIZE = 1024 * 64
 # - Two tasks for each client connection:
 #   - One for receiving and processing incoming commands
 #   - One for sending outgoing command responses
-# - A task for each client's data server
-# - A task for each data connection from the client
+# - A task for each client's data server: only running until the data transfer
+#   started
+# - A task for each data connection from the client: any more than one will
+#   be very short-lived, e.g. if multiple clients connect in the brief amount
+#   amount of time that the server has started, but not yet started the data
+#   transfer, the second will close the connection and end the task
 #
 # The separation of incoming/outgoing on the client command connection is a
 # consequence of wanting outgoing command responses from the _data_ task.
@@ -95,6 +99,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
     cwd = PurePosixPath('/')
 
     data_server = None
+    data_client = None
     data_port = None
     data_funcs = asyncio.Queue(maxsize=1)
 
@@ -285,26 +290,39 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
         nonlocal data_server
 
         async def on_data_client_connect(data_client_logger, __, ____, data_sock):
+            nonlocal data_client
+
             # Raise if we have an unexpected data client, but keeping the
             # server running to not interfere withthe running connection
             func = data_funcs.get_nowait()
 
+            data_client = asyncio.current_task()
+
+            # If we do have an expected data client, we cancel the server
+            # to prevent more connections
+            data_server.cancel()
+            await asyncio.sleep(0)
+
+            with logged(data_client_logger, 'Performing TLS handshake', []):
+                ssl_data_sock = ssl_get_socket(ssl_context, data_sock)
+                await ssl_complete_handshake(loop, ssl_data_sock)
+
             try:
-
-                with logged(data_client_logger, 'Performing TLS handshake', []):
-                    ssl_data_sock = ssl_get_socket(ssl_context, data_sock)
-                    await ssl_complete_handshake(loop, ssl_data_sock)
-
-                try:
-                    await func(ssl_data_sock)
-                finally:
-                    data_funcs.task_done()
-                    await command_responses.put(b'226 Closing data connection.')
-                    data_sock = await ssl_unwrap_socket(loop, ssl_data_sock, data_sock)
-                    await shutdown_socket(loop, data_sock)
-
+                await func(ssl_data_sock)
             finally:
-                data_server.cancel()
+                data_funcs.task_done()
+                await command_responses.put(b'226 Closing data connection.')
+                data_sock = await ssl_unwrap_socket(loop, ssl_data_sock, data_sock)
+                await shutdown_socket(loop, data_sock)
+
+        async def on_data_server_cancel(_):  # Client tasks passed
+            # Since cancellation of the data server is triggered at the
+            # beginning of the data client task, which would call this
+            # function, we don't cancel the child task here, otherwise we'll
+            # be cancelling what we want to be running. On main server cancel,
+            # the data client task is cancelled, near the bottom of
+            # on_client_connect
+            pass
 
         def on_data_server_close(_):
             nonlocal data_port
@@ -318,7 +336,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
             data_port = data_ports.popleft()
             data_logger = get_child_logger(logger, 'data')
             data_server = loop.create_task(server(data_logger, loop, ssl_context, data_port,
-                                                  on_data_client_connect))
+                                                  on_data_client_connect, on_data_server_cancel))
             data_server.add_done_callback(on_data_server_close)
 
         data_port_higher = str(data_port >> 8).encode('ascii')
@@ -376,6 +394,10 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
     try:
         await main_client_loop(locals())
     finally:
+        if data_client:
+            data_client.cancel()
+            await asyncio.sleep(0)
+
         if data_server:
             data_server.cancel()
             await asyncio.sleep(0)
@@ -421,8 +443,13 @@ async def async_main(loop, logger, ssl_context):
         await on_client_connect(logger, loop, ssl_context, sock, data_ports,
                                 is_user_correct, is_password_correct, s3_context)
 
+    async def on_cancel(child_tasks):
+        for child in list(child_tasks):
+            child.cancel()
+            await asyncio.sleep(0)
+
     try:
-        await server(logger, loop, ssl_context, command_port, _on_client_connect)
+        await server(logger, loop, ssl_context, command_port, _on_client_connect, on_cancel)
     except asyncio.CancelledError:
         pass
     except BaseException:
@@ -453,10 +480,15 @@ async def healthcheck(loop, logger, ssl_context):
     async def on_healthcheck_client_connect(_, loop, __, sock):
         await shutdown_socket(loop, sock)
 
+    async def on_cancel(_):
+        # No child tasks to cancel
+        pass
+
     healthcheck_port = int(os.environ['HEALTHCHECK_PORT'])
     ssl_context = None
     try:
-        await server(logger, loop, ssl_context, healthcheck_port, on_healthcheck_client_connect)
+        await server(logger, loop, ssl_context, healthcheck_port, on_healthcheck_client_connect,
+                     on_cancel)
     except asyncio.CancelledError:
         pass
 
