@@ -175,7 +175,8 @@ def ssl_complete_handshake(loop, ssl_sock):
         except SSLWantWriteError:
             loop.add_writer(fileno, handshake_with_writer)
         except BaseException as exception:
-            done.set_exception(exception)
+            if not done.cancelled():
+                done.set_exception(exception)
 
     def handshake_with_reader():
         loop.remove_reader(fileno)
@@ -203,7 +204,8 @@ def ssl_unwrap_socket(loop, ssl_sock, original_sock):
         except SSLWantWriteError:
             loop.add_writer(fileno, unwrap_with_writer)
         except BaseException:
-            done.set_result(original_sock)
+            if not done.cancelled():
+                done.set_result(original_sock)
 
     def unwrap_with_reader():
         loop.remove_reader(fileno)
