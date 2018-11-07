@@ -332,12 +332,11 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
             data_port = None
             data_server = None
 
-        if not data_port:
-            data_port = data_ports.popleft()
-            data_logger = get_child_logger(logger, 'data')
-            data_server = loop.create_task(server(data_logger, loop, ssl_context, data_port,
-                                                  on_data_client_connect, on_data_server_cancel))
-            data_server.add_done_callback(on_data_server_close)
+        data_port = data_ports.popleft()
+        data_logger = get_child_logger(logger, 'data')
+        data_server = loop.create_task(server(data_logger, loop, ssl_context, data_port,
+                                              on_data_client_connect, on_data_server_cancel))
+        data_server.add_done_callback(on_data_server_close)
 
         data_port_higher = str(data_port >> 8).encode('ascii')
         data_port_lower = str(data_port & 0xff).encode('ascii')
@@ -367,7 +366,8 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
             (command == 'PASS' and is_ssl and not is_authenticated and user) or \
             (command == 'PROT' and is_ssl and not is_authenticated and not user) or \
             (command == 'PBSZ' and is_ssl and not is_authenticated and not user) or \
-            (command not in {'AUTH', 'USER', 'PASS'} and is_ssl and is_authenticated)
+            (command == 'PASV' and is_ssl and is_authenticated and not data_port) or \
+            (command not in {'AUTH', 'USER', 'PASS', 'PASV'} and is_ssl and is_authenticated)
 
         return is_good
 
