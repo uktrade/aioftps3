@@ -7,7 +7,9 @@ from socket import (
     AF_INET,
     IPPROTO_TCP,
     SHUT_RDWR,
+    SO_REUSEADDR,
     SOCK_STREAM,
+    SOL_SOCKET,
     socket,
 )
 from ssl import (
@@ -53,6 +55,7 @@ async def server(logger, loop, ssl_context, port, on_accepting, client_handler, 
 
     with logged(logger, 'Starting server on %s', [port]):
         sock = socket(family=AF_INET, type=SOCK_STREAM, proto=IPPROTO_TCP)
+        sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         sock.setblocking(False)
         sock.bind(('', port))
         sock.listen(IPPROTO_TCP)
