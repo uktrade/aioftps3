@@ -287,11 +287,20 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
         nonlocal data_port
         nonlocal data_server
 
+        # A short lived future that resolves when the data server is actually
+        # accepting connections: the server is in another task which isn't
+        # guaranteed to run before the client connects to the data port
+        accepting = asyncio.Future()
+
+        def on_data_server_accepting():
+            if not accepting.done():
+                accepting.set_result(None)
+
         async def on_data_client_connect(data_client_logger, __, ____, data_sock):
             nonlocal data_client
 
             # Raise if we have an unexpected data client, but keeping the
-            # server running to not interfere withthe running connection
+            # server running to not interfere with the running connection
             func = data_funcs.get_nowait()
 
             data_client = asyncio.current_task()
@@ -334,6 +343,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
         data_ports.remove(data_port)
         data_logger = get_child_logger(logger, 'data')
         data_server = loop.create_task(server(data_logger, loop, ssl_context, data_port,
+                                              on_data_server_accepting,
                                               on_data_client_connect, on_data_server_cancel))
         data_server.add_done_callback(on_data_server_close)
 
@@ -341,6 +351,8 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
         data_port_lower = str(data_port & 0xff).encode('ascii')
         response = b'227 Entering Passive Mode (0,0,0,0,%s,%s)' % (
             data_port_higher, data_port_lower)
+
+        await accepting
         await command_responses.put(response)
 
     async def command_quit(_):
@@ -438,6 +450,9 @@ async def async_main(loop, logger, ssl_context):
     async def is_password_correct(user, possible_password):
         return constant_time_compare(users[user], possible_password)
 
+    def on_accepting():
+        pass
+
     async def _on_client_connect(logger, loop, ssl_context, sock):
         await on_client_connect(logger, loop, ssl_context, sock, data_ports,
                                 is_user_correct, is_password_correct, s3_context)
@@ -448,7 +463,8 @@ async def async_main(loop, logger, ssl_context):
             await asyncio.sleep(0)
 
     try:
-        await server(logger, loop, ssl_context, command_port, _on_client_connect, on_cancel)
+        await server(logger, loop, ssl_context, command_port, on_accepting,
+                     _on_client_connect, on_cancel)
     except asyncio.CancelledError:
         pass
     except BaseException:
@@ -479,6 +495,9 @@ async def healthcheck(loop, logger, ssl_context):
     async def on_healthcheck_client_connect(_, loop, __, sock):
         await shutdown_socket(loop, sock)
 
+    def on_accepting():
+        pass
+
     async def on_cancel(_):
         # No child tasks to cancel
         pass
@@ -486,8 +505,8 @@ async def healthcheck(loop, logger, ssl_context):
     healthcheck_port = int(os.environ['HEALTHCHECK_PORT'])
     ssl_context = None
     try:
-        await server(logger, loop, ssl_context, healthcheck_port, on_healthcheck_client_connect,
-                     on_cancel)
+        await server(logger, loop, ssl_context, healthcheck_port, on_accepting,
+                     on_healthcheck_client_connect, on_cancel)
     except asyncio.CancelledError:
         pass
 
