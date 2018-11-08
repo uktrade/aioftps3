@@ -16,6 +16,10 @@ import urllib
 import weakref
 import xml.etree.ElementTree as ET
 
+from server_logger import (
+    logged,
+)
+
 
 # This must be between 5 and 2000MB
 MULTIPART_UPLOAD_MIN_BYTES = 1024 * 1024 * 25
@@ -98,65 +102,65 @@ def get_s3_context(session, credentials, bucket):
     )
 
 
-async def s3_exists(context, path):
-    return await _exists(context, path)
+async def s3_exists(logger, context, path):
+    return await _exists(logger, context, path)
 
 
-async def s3_is_dir(context, path):
-    return await _is_dir(context, path)
+async def s3_is_dir(logger, context, path):
+    return await _is_dir(logger, context, path)
 
 
-async def s3_is_file(context, path):
-    return await _is_file(context, path)
+async def s3_is_file(logger, context, path):
+    return await _is_file(logger, context, path)
 
 
-async def s3_mkdir(context, path):
+async def s3_mkdir(logger, context, path):
     async with context.lock([path]):
-        if await _exists(context, path):
+        if await _exists(logger, context, path):
             raise Exception('{} already exists'.format(path))
 
-        await _mkdir(context, path)
+        await _mkdir(logger, context, path)
 
 
-async def s3_rmdir(context, path):
+async def s3_rmdir(logger, context, path):
     async with context.lock([path]):
-        if await _is_file(context, path):
+        if await _is_file(logger, context, path):
             raise Exception('{} is not a directory'.format(path))
 
-        if not await _is_dir(context, path):
+        if not await _is_dir(logger, context, path):
             raise Exception('{} does not exist'.format(path))
 
-        return await _rmdir(context, path)
+        return await _rmdir(logger, context, path)
 
 
-async def s3_delete(context, path):
+async def s3_delete(logger, context, path):
     async with context.lock([path]):
-        if await _is_dir(context, path):
+        if await _is_dir(logger, context, path):
             raise Exception('{} is a directory'.format(path))
 
-        if not await _is_file(context, path):
+        if not await _is_file(logger, context, path):
             raise Exception('{} does not exist'.format(path))
 
-        return await _delete(context, path)
+        return await _delete(logger, context, path)
 
 
-async def s3_list(context, path):
+async def s3_list(logger, context, path):
     # We allow lists to see non-consistent changes: renames or deletes
     # of folders with lots of files could be taking a while, and nothing
     # too horrible will happen if there is a list half way through
-    if not await _is_dir(context, path):
+    if not await _is_dir(logger, context, path):
         raise Exception('{} is not a directory'.format(path))
 
-    return _list(context, path)
+    return _list(logger, context, path)
 
 
-def s3_get(context, path, chunk_size):
-    return _get(context, path, chunk_size)
+def s3_get(logger, context, path, chunk_size):
+    return _get(logger, context, path, chunk_size)
 
 
 @asynccontextmanager
-async def s3_put(context, path):
-    async with _put(context, path) as write:
+async def s3_put(logger, context, path):
+    async with _put(logger, context, path) as write:
         yield write
 
 
@@ -180,70 +184,70 @@ def _dir_key(path):
     return key
 
 
-async def _exists(context, path):
+async def _exists(logger, context, path):
     return \
-        await _is_file(context, path) or \
-        await _is_dir(context, path)
+        await _is_file(logger, context, path) or \
+        await _is_dir(logger, context, path)
 
 
-async def _is_dir(context, path):
+async def _is_dir(logger, context, path):
     result = \
         True if path == PurePosixPath('/') else \
-        await _dir_exists(context, path)
+        await _dir_exists(logger, context, path)
     return result
 
 
-async def _is_file(context, path):
+async def _is_file(logger, context, path):
     result = \
         False if path == PurePosixPath('/') else \
-        await _file_exists(context, path) and not await _dir_exists(context, path)
+        await _file_exists(logger, context, path) and not await _dir_exists(logger, context, path)
     return result
 
 
-async def _file_exists(context, path):
-    response, _ = await _s3_request_full(context, 'HEAD', '/' + _key(path), {}, {},
+async def _file_exists(logger, context, path):
+    response, _ = await _s3_request_full(logger, context, 'HEAD', '/' + _key(path), {}, {},
                                          b'', _hash(b''))
     return response.status == 200
 
 
-async def _dir_exists(context, path):
-    response, _ = await _s3_request_full(context, 'HEAD', '/' + _dir_key(path), {}, {},
+async def _dir_exists(logger, context, path):
+    response, _ = await _s3_request_full(logger, context, 'HEAD', '/' + _dir_key(path), {}, {},
                                          b'', _hash(b''))
     return response.status == 200
 
 
-async def _mkdir(context, path):
-    response, _ = await _s3_request_full(context, 'PUT', '/' + _dir_key(path), {}, {},
+async def _mkdir(logger, context, path):
+    response, _ = await _s3_request_full(logger, context, 'PUT', '/' + _dir_key(path), {}, {},
                                          b'', _hash(b''))
     response.raise_for_status()
 
 
-async def _rmdir(context, path):
-    keys = await _list_descendant_keys(context, _dir_key(path))
+async def _rmdir(logger, context, path):
+    keys = await _list_descendant_keys(logger, context, _dir_key(path))
 
     def delete_sort_key(key):
         # Delete innermost files and folders first
         return (key.key.count('/'), len(key.key), key.key)
 
     for key in sorted(keys, key=delete_sort_key, reverse=True):
-        response, _ = await _s3_request_full(context, 'DELETE', '/' + key.key, {}, {},
+        response, _ = await _s3_request_full(logger, context, 'DELETE', '/' + key.key, {}, {},
                                              b'', _hash(b''))
         response.raise_for_status()
 
 
-async def _list(context, path):
-    for child_path in await _list_immediate_child_paths(context, _dir_key(path)):
+async def _list(logger, context, path):
+    for child_path in await _list_immediate_child_paths(logger, context, _dir_key(path)):
         yield child_path
 
 
-async def _delete(context, path):
-    response, _ = await _s3_request_full(context, 'DELETE', '/' + _key(path), {}, {},
+async def _delete(logger, context, path):
+    response, _ = await _s3_request_full(logger, context, 'DELETE', '/' + _key(path), {}, {},
                                          b'', _hash(b''))
     response.raise_for_status()
 
 
 @asynccontextmanager
-async def _put(context, path):
+async def _put(logger, context, path):
     upload_id = None
     part_uploads = []
 
@@ -254,7 +258,7 @@ async def _put(context, path):
     async def start():
         nonlocal upload_id
         new_part_init()
-        upload_id = await _multipart_upload_start(context, path)
+        upload_id = await _multipart_upload_start(logger, context, path)
 
     def new_part_init():
         nonlocal part_length
@@ -288,7 +292,7 @@ async def _put(context, path):
     def upload_part():
         part_number = str(len(part_uploads) + 1)
         upload_coro = _multipart_upload_part(
-            context, path, upload_id,
+            logger, context, path, upload_id,
             part_number, part_length, part_chunks, part_payload_hash.hexdigest())
         part_uploads.append(asyncio.create_task(upload_coro))
         new_part_init()
@@ -309,15 +313,15 @@ async def _put(context, path):
         # A bucket lifecycle policy can cleanup unfinished multipart uploads, so we
         # don't need to do it here
         async with context.lock([path]):
-            if await _is_file(context, path.parent):
+            if await _is_file(logger, context, path.parent):
                 raise Exception('{} is not a directory'.format(path.parent))
 
-            if not await _is_dir(context, path.parent):
+            if not await _is_dir(logger, context, path.parent):
                 raise Exception('{} does not exist'.format(path.parent))
 
             # Overwrites are allowed, so there is no need to check if the file aleady exists
 
-            await _multipart_upload_complete(context, path, upload_id, indexes_and_etags)
+            await _multipart_upload_complete(logger, context, path, upload_id, indexes_and_etags)
 
         new_part_init()
 
@@ -326,17 +330,17 @@ async def _put(context, path):
     await end()
 
 
-async def _multipart_upload_start(context, path):
+async def _multipart_upload_start(logger, context, path):
     query = {
         'uploads': '',
     }
-    response, body = await _s3_request_full(context, 'POST', '/' + _key(path), query, {},
+    response, body = await _s3_request_full(logger, context, 'POST', '/' + _key(path), query, {},
                                             b'', _hash(b''))
     response.raise_for_status()
     return re.search(b'<UploadId>(.*)</UploadId>', body)[1].decode('utf-8')
 
 
-async def _multipart_upload_part(context, path, upload_id, part_number, part_length,
+async def _multipart_upload_part(logger, context, path, upload_id, part_number, part_length,
                                  part_chunks, part_payload_hash):
     async def aiter(iterable):
         for item in iterable:
@@ -349,7 +353,7 @@ async def _multipart_upload_part(context, path, upload_id, part_number, part_len
         'uploadId': upload_id,
     }
     headers = {'Content-Length': str(part_length)}
-    response, _ = await _s3_request_full(context, 'PUT', '/' + _key(path), query, headers,
+    response, _ = await _s3_request_full(logger, context, 'PUT', '/' + _key(path), query, headers,
                                          part_payload, part_payload_hash)
     response.raise_for_status()
     part_etag = response.headers['ETag']
@@ -357,7 +361,7 @@ async def _multipart_upload_part(context, path, upload_id, part_number, part_len
     return (part_number, part_etag)
 
 
-async def _multipart_upload_complete(context, path, upload_id, part_numbers_and_etags):
+async def _multipart_upload_complete(logger, context, path, upload_id, part_numbers_and_etags):
 
     payload = (
         '<CompleteMultipartUpload>' +
@@ -371,25 +375,29 @@ async def _multipart_upload_complete(context, path, upload_id, part_numbers_and_
     query = {
         'uploadId': upload_id,
     }
-    response, _ = await _s3_request_full(context, 'POST', '/' + _key(path), query, {},
+    response, _ = await _s3_request_full(logger, context, 'POST', '/' + _key(path), query, {},
                                          payload, payload_hash)
     response.raise_for_status()
 
 
-async def _get(context, path, chunk_size):
+async def _get(logger, context, path, chunk_size):
     # S3 GETs are atomic, so we don't need any additional locking
     # It will either fail with a 404, or return a consistent object
 
-    async with await _s3_request(context, 'GET', '/' + _key(path), {}, {},
-                                 b'', _hash(b'')) as response:
-        response.raise_for_status()
-        async for data in response.content.iter_chunked(chunk_size):
-            yield data
+    method = 'GET'
+    s3_path = '/' + _key(path)
+    query = {}
+    with logged(logger, 'Request: %s %s %s %s', [method, context.bucket.host, s3_path, query]):
+        async with await _s3_request(context, method, s3_path, query, {},
+                                     b'', _hash(b'')) as response:
+            response.raise_for_status()
+            async for data in response.content.iter_chunked(chunk_size):
+                yield data
 
 
-async def _list_immediate_child_paths(context, key_prefix):
+async def _list_immediate_child_paths(logger, context, key_prefix):
     epoch = datetime.utcfromtimestamp(0)
-    list_prefixes, list_keys = await _list_keys(context, key_prefix, S3_DIR_SUFFIX)
+    list_prefixes, list_keys = await _list_keys(logger, context, key_prefix, S3_DIR_SUFFIX)
 
     return [
         S3ListPath(list_key.key, stat=Stat(
@@ -417,12 +425,12 @@ async def _list_immediate_child_paths(context, key_prefix):
     ]
 
 
-async def _list_descendant_keys(context, key_prefix):
-    list_keys, _ = await _list_keys(context, key_prefix, '')
+async def _list_descendant_keys(logger, context, key_prefix):
+    list_keys, _ = await _list_keys(logger, context, key_prefix, '')
     return list_keys
 
 
-async def _list_keys(context, key_prefix, delimeter):
+async def _list_keys(logger, context, key_prefix, delimeter):
     common_query = {
         'max-keys': '1000',
         'list-type': '2',
@@ -434,7 +442,8 @@ async def _list_keys(context, key_prefix, delimeter):
             'delimiter': delimeter,
             'prefix': key_prefix,
         }
-        response, body = await _s3_request_full(context, 'GET', '/', query, {}, b'', _hash(b''))
+        response, body = await _s3_request_full(logger, context, 'GET', '/', query, {},
+                                                b'', _hash(b''))
         response.raise_for_status()
         return _parse_list_response(body)
 
@@ -443,7 +452,8 @@ async def _list_keys(context, key_prefix, delimeter):
             **common_query,
             'continuation-token': token,
         }
-        response, body = await _s3_request_full(context, 'GET', '/', query, {}, b'', _hash(b''))
+        response, body = await _s3_request_full(logger, context, 'GET', '/', query, {},
+                                                b'', _hash(b''))
         response.raise_for_status()
         return _parse_list_response(body)
 
@@ -491,11 +501,13 @@ def _hash(payload):
     return hashlib.sha256(payload).hexdigest()
 
 
-async def _s3_request_full(context, method, path, query, api_pre_auth_headers,
+async def _s3_request_full(logger, context, method, path, query, api_pre_auth_headers,
                            payload, payload_hash):
-    async with await _s3_request(context, method, path, query, api_pre_auth_headers,
-                                 payload, payload_hash) as result:
-        return result, await result.read()
+
+    with logged(logger, 'Request: %s %s %s %s', [method, context.bucket.host, path, query]):
+        async with await _s3_request(context, method, path, query, api_pre_auth_headers,
+                                     payload, payload_hash) as result:
+            return result, await result.read()
 
 
 async def _s3_request(context, method, path, query, api_pre_auth_headers, payload, payload_hash):
