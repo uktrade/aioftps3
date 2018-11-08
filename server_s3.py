@@ -115,7 +115,7 @@ async def s3_is_file(logger, context, path):
 
 
 async def s3_mkdir(logger, context, path):
-    async with context.lock([path]):
+    async with context.lock(logger, [path]):
         if await _exists(logger, context, path):
             raise Exception('{} already exists'.format(path))
 
@@ -123,7 +123,7 @@ async def s3_mkdir(logger, context, path):
 
 
 async def s3_rmdir(logger, context, path):
-    async with context.lock([path]):
+    async with context.lock(logger, [path]):
         if await _is_file(logger, context, path):
             raise Exception('{} is not a directory'.format(path))
 
@@ -134,7 +134,7 @@ async def s3_rmdir(logger, context, path):
 
 
 async def s3_delete(logger, context, path):
-    async with context.lock([path]):
+    async with context.lock(logger, [path]):
         if await _is_dir(logger, context, path):
             raise Exception('{} is a directory'.format(path))
 
@@ -312,7 +312,7 @@ async def _put(logger, context, path):
         # APIs that query multipart uploads), so this all we need to wrap in a lock.
         # A bucket lifecycle policy can cleanup unfinished multipart uploads, so we
         # don't need to do it here
-        async with context.lock([path]):
+        async with context.lock(logger, [path]):
             if await _is_file(logger, context, path.parent):
                 raise Exception('{} is not a directory'.format(path.parent))
 
@@ -690,20 +690,25 @@ class _PathLock():
         ]
 
     @asynccontextmanager
-    async def __call__(self, paths):
+    async def __call__(self, logger, paths):
         writable_paths = set(paths)
-        writable_locks = self._with_locks(writable_paths, lambda lock: lock.write())
+        writable_locks = self._with_locks(writable_paths, lambda lock: (lock.write, 'write'))
 
         ancestor_paths = _flatten(path.parents for path in paths)
         readable_paths = set(ancestor_paths) - writable_paths
-        readable_locks = self._with_locks(readable_paths, lambda lock: lock.read())
+        readable_locks = self._with_locks(readable_paths, lambda lock: (lock.read, 'read'))
 
         sorted_locks = sorted(readable_locks + writable_locks, key=self._sort_key)
         async with AsyncExitStack() as stack:
-            for _, lock, lock_func in sorted_locks:
-                await stack.enter_async_context(lock_func(lock))
+            for path, lock, lock_func in sorted_locks:
+                locker, lock_type = lock_func(lock)
+                with logged(logger, 'Locking %s on %s', [lock_type, path]):
+                    await stack.enter_async_context(locker())
 
             yield
+
+            for path, _, _ in reversed(sorted_locks):
+                logger.debug('Unlocking %s', path)
 
 
 def _flatten(to_flatten):
