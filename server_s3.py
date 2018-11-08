@@ -426,7 +426,7 @@ async def _list_immediate_child_paths(logger, context, key_prefix):
 
 
 async def _list_descendant_keys(logger, context, key_prefix):
-    list_keys, _ = await _list_keys(logger, context, key_prefix, '')
+    _, list_keys = await _list_keys(logger, context, key_prefix, '')
     return list_keys
 
 
