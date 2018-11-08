@@ -68,10 +68,10 @@ data "aws_iam_policy_document" "app_task_execution" {
 resource "aws_iam_role" "app_task" {
   name               = "${var.name}-app-task"
   path               = "/"
-  assume_role_policy = "${data.aws_iam_policy_document.app_task.json}"
+  assume_role_policy = "${data.aws_iam_policy_document.app_task_assume_role.json}"
 }
 
-data "aws_iam_policy_document" "app_task" {
+data "aws_iam_policy_document" "app_task_assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
 
@@ -79,6 +79,41 @@ data "aws_iam_policy_document" "app_task" {
       type        = "Service"
       identifiers = ["ecs-tasks.amazonaws.com"]
     }
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "app_task" {
+  role       = "${aws_iam_role.app_task.name}"
+  policy_arn = "${aws_iam_policy.app_task.arn}"
+}
+
+resource "aws_iam_policy" "app_task" {
+  name        = "${var.name}-app-task"
+  path        = "/"
+  policy       = "${data.aws_iam_policy_document.app_task.json}"
+}
+
+data "aws_iam_policy_document" "app_task" {
+  statement {
+    actions = [
+      "s3:ListBucket",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.app.arn}",
+    ]
+  }
+
+  statement {
+    actions = [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+    ]
+
+    resources = [
+      "${aws_s3_bucket.app.arn}/*",
+    ]
   }
 }
 
@@ -95,8 +130,6 @@ data "template_file" "app_container_definitions" {
     log_group  = "${aws_cloudwatch_log_group.aws_ecs_task_definition_app.name}"
     log_region = "${data.aws_region.aws_region.name}"
 
-    aws_access_key_id     = "${aws_iam_access_key.app_s3.id}"
-    aws_secret_access_key = "${aws_iam_access_key.app_s3.secret}"
     aws_s3_bucket_host    = "s3-${aws_s3_bucket.app.region}.amazonaws.com"
     aws_s3_bucket_name    = "${aws_s3_bucket.app.id}"
     aws_s3_bucket_region  = "${aws_s3_bucket.app.region}"

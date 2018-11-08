@@ -15,12 +15,8 @@
       }
     },
     "environment": [{
-      "name": "AWS_ACCESS_KEY_ID",
-      "value": "${aws_access_key_id}"
-    },
-    {
-      "name": "AWS_SECRET_ACCESS_KEY",
-      "value": "${aws_secret_access_key}"
+      "name": "AWS_AUTH_MECHANISM",
+      "value": "ecs_role"
     },
     {
       "name": "AWS_S3_BUCKET_HOST",

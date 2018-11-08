@@ -40,6 +40,7 @@ and then to run the tests themselves.
 ```bash
 docker build -t ftps-s3 . && \
 docker run --rm -p 8021-8042:8021-8042 \
+  -e AWS_AUTH_MECHANISM=secret_access_key \
   -e AWS_ACCESS_KEY_ID=ommitted \
   -e AWS_SECRET_ACCESS_KEY=ommitted \
   -e AWS_S3_BUCKET_REGION=eu-west-1 \

@@ -10,6 +10,7 @@ from contextlib import (
 from datetime import datetime
 import hashlib
 import hmac
+import json
 from pathlib import PurePosixPath
 import re
 import urllib
@@ -74,11 +75,49 @@ class S3ListPath(PurePosixPath):
 
 def get_s3_secret_access_key_credentials(access_key_id, secret_access_key):
 
-    async def get():
+    async def get(_, __):
         return S3Credentials(
             access_key_id=access_key_id,
             secret_access_key=secret_access_key,
             pre_auth_headers={},
+        )
+
+    return get
+
+
+def get_s3_ecs_role_credentials(url):
+
+    aws_access_key_id = None
+    aws_secret_access_key = None
+    token = None
+    expiration = datetime(1900, 1, 1)
+
+    async def get(logger, context):
+        nonlocal aws_access_key_id
+        nonlocal aws_secret_access_key
+        nonlocal token
+        nonlocal expiration
+
+        now = datetime.now()
+
+        if now > expiration:
+            method = 'GET'
+            with logged(logger, 'Requesting temporary credentials from %s', [url]):
+                async with context.session.request(method, url) as response:
+                    response.raise_for_status()
+                    creds = json.loads(await response.read())
+
+            aws_access_key_id = creds['AccessKeyId']
+            aws_secret_access_key = creds['SecretAccessKey']
+            token = creds['Token']
+            expiration = datetime.strptime(creds['Expiration'], '%Y-%m-%dT%H:%M:%SZ')
+
+        return S3Credentials(
+            access_key_id=aws_access_key_id,
+            secret_access_key=aws_secret_access_key,
+            pre_auth_headers={
+                'x-amz-security-token': token,
+            },
         )
 
     return get
@@ -441,7 +480,7 @@ async def _get(logger, context, path, chunk_size):
     s3_path = '/' + _key(path)
     query = {}
     with logged(logger, 'Request: %s %s %s %s', [method, context.bucket.host, s3_path, query]):
-        async with await _s3_request(context, method, s3_path, query, {},
+        async with await _s3_request(logger, context, method, s3_path, query, {},
                                      b'', _hash(b'')) as response:
             response.raise_for_status()
             async for data in response.content.iter_chunked(chunk_size):
@@ -559,14 +598,15 @@ async def _s3_request_full(logger, context, method, path, query, api_pre_auth_he
 
     with logged(logger, 'Request: %s %s %s %s %s',
                 [method, context.bucket.host, path, query, api_pre_auth_headers]):
-        async with await _s3_request(context, method, path, query, api_pre_auth_headers,
+        async with await _s3_request(logger, context, method, path, query, api_pre_auth_headers,
                                      payload, payload_hash) as result:
             return result, await result.read()
 
 
-async def _s3_request(context, method, path, query, api_pre_auth_headers, payload, payload_hash):
+async def _s3_request(logger, context, method, path, query, api_pre_auth_headers,
+                      payload, payload_hash):
     service = 's3'
-    creds = await context.credentials()
+    creds = await context.credentials(logger, context)
     pre_auth_headers = {
         **api_pre_auth_headers,
         **creds.pre_auth_headers,
