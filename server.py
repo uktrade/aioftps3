@@ -26,6 +26,7 @@ from server_logger import (
 from server_s3 import (
     get_s3_bucket,
     get_s3_context,
+    get_s3_ecs_role_credentials,
     get_s3_secret_access_key_credentials,
     s3_delete,
     s3_get,
@@ -488,10 +489,17 @@ async def async_main(loop, logger, ssl_context):
     data_ports = set(range(data_ports_first, data_ports_first + data_ports_count))
 
     session = aiohttp.ClientSession(loop=loop)
-    credentials = get_s3_secret_access_key_credentials(
-        access_key_id=env['AWS_ACCESS_KEY_ID'],
-        secret_access_key=env['AWS_SECRET_ACCESS_KEY'],
-    )
+
+    auth_mechanisms = {
+        'secret_access_key': lambda: get_s3_secret_access_key_credentials(
+            access_key_id=env['AWS_ACCESS_KEY_ID'],
+            secret_access_key=env['AWS_SECRET_ACCESS_KEY'],
+        ),
+        'ecs_role': lambda: get_s3_ecs_role_credentials(
+            url='http://169.254.170.2/' + env['AWS_CONTAINER_CREDENTIALS_RELATIVE_URI'],
+        ),
+    }
+    credentials = auth_mechanisms[env['AWS_AUTH_MECHANISM']]()
     bucket = get_s3_bucket(
         region=env['AWS_S3_BUCKET_REGION'],
         host=env['AWS_S3_BUCKET_HOST'],
