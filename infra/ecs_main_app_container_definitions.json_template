@@ -55,6 +55,22 @@
       "value": "${ftp_data_ports_count}"
     },
     {
+      "name": "FTP_DATA_CIDR_TO_DOMAINS__1__CIDR",
+      "value": "${ftp_data_cidr_to_domains__1__cidr}"
+    },
+    {
+      "name": "FTP_DATA_CIDR_TO_DOMAINS__1__DOMAIN",
+      "value": "${ftp_data_cidr_to_domains__1__domain}"
+    },
+    {
+      "name": "FTP_DATA_CIDR_TO_DOMAINS__2__CIDR",
+      "value": "${ftp_data_cidr_to_domains__2__cidr}"
+    },
+    {
+      "name": "FTP_DATA_CIDR_TO_DOMAINS__2__DOMAIN",
+      "value": "${ftp_data_cidr_to_domains__2__domain}"
+    },
+    {
       "name": "HEALTHCHECK_PORT",
       "value": "${healthcheck_port}"
     }]

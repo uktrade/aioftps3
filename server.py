@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 import logging
 from pathlib import (
     PurePosixPath,
@@ -13,6 +14,7 @@ from ssl import (
 import stat
 import sys
 
+import aiodns
 import aiohttp
 
 from server_logger import (
@@ -342,7 +344,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
 
         data_port_higher = str(data_port >> 8).encode('ascii')
         data_port_lower = str(data_port & 0xff).encode('ascii')
-        data_ip = [part.encode('ascii') for part in (await get_data_ip()).split('.')]
+        data_ip = [part.encode('ascii') for part in (await get_data_ip(get_sock())).split('.')]
         response = b'227 Entering Passive Mode (%s,%s,%s,%s,%s,%s)' % (
             data_ip[0], data_ip[1], data_ip[2], data_ip[3],
             data_port_higher, data_port_lower)
@@ -453,6 +455,9 @@ async def async_main(loop, logger, ssl_context):
         env['FTP_USER_LOGIN']: env['FTP_USER_PASSWORD'],
     }
 
+    data_cidrs = env['FTP_DATA_CIDR_TO_DOMAINS']
+    resolver = aiodns.DNSResolver(loop=loop)
+
     async def is_user_correct(user):
         return user in users
 
@@ -463,8 +468,26 @@ async def async_main(loop, logger, ssl_context):
         await on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_ports,
                                 is_user_correct, is_password_correct, s3_context)
 
-    async def get_data_ip():
-        return '0.0.0.0'
+    async def get_data_ip(command_sock):
+        # - Not all clients handle PASV returning a private IP or 0.0.0.0
+        # - We run behind multiple balancers, with different IPs the clients
+        #   connect to
+        # - Because of the balancers, we don't know the original IP the client
+        #   connected to,
+        # - The balancers don't necessarily have a fixed IP, but they do have
+        #   a fixed domain, and each are in a separate subnet
+        # So, we are able to match the incoming IP against the subnet CIDRS,
+        # each to "reverse engineer" the correct IP for each command
+        # connection
+        client_ip = ipaddress.IPv4Network(command_sock.getpeername()[0] + '/32')
+
+        matching_domain = [
+            cidr['DOMAIN']
+            for cidr in data_cidrs
+            if client_ip.subnet_of(ipaddress.IPv4Network(cidr['CIDR']))
+        ][0]
+
+        return ((await resolver.query(matching_domain, 'A'))[0]).host
 
     try:
         await server(logger, loop, ssl_context, command_port,

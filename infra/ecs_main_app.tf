@@ -107,6 +107,11 @@ data "template_file" "app_container_definitions" {
     ftp_data_ports_first = "${var.ftp_data_ports_first}"
     ftp_data_ports_count = "${var.ftp_data_ports_count}"
 
+    ftp_data_cidr_to_domains__1__cidr = "${aws_subnet.public.cidr_block}"
+    ftp_data_cidr_to_domains__1__domain = "${aws_lb.app_public.dns_name}"
+    ftp_data_cidr_to_domains__2__cidr = "${aws_subnet.private.cidr_block}"
+    ftp_data_cidr_to_domains__2__domain = "${aws_lb.app_private.dns_name}"
+
     healthcheck_port = "${var.healthcheck_port}"
   }
 }
