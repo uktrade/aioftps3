@@ -46,8 +46,9 @@ from server_socket import (
 )
 
 from server_utils import (
-    timeout,
     constant_time_compare,
+    normalise_environment,
+    timeout,
 )
 
 # How long a command has to complete
@@ -428,26 +429,28 @@ async def cancel_client_tasks(client_tasks):
 
 
 async def async_main(loop, logger, ssl_context):
-    command_port = int(os.environ['FTP_COMMAND_PORT'])
-    data_ports_first = int(os.environ['FTP_DATA_PORTS_FIRST'])
-    data_ports_count = int(os.environ['FTP_DATA_PORTS_COUNT'])
+    env = normalise_environment(os.environ)
+
+    command_port = int(env['FTP_COMMAND_PORT'])
+    data_ports_first = int(env['FTP_DATA_PORTS_FIRST'])
+    data_ports_count = int(env['FTP_DATA_PORTS_COUNT'])
     data_ports = set(range(data_ports_first, data_ports_first + data_ports_count))
 
     session = aiohttp.ClientSession(loop=loop)
     credentials = get_s3_secret_access_key_credentials(
-        access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
-        secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+        access_key_id=env['AWS_ACCESS_KEY_ID'],
+        secret_access_key=env['AWS_SECRET_ACCESS_KEY'],
     )
     bucket = get_s3_bucket(
-        region=os.environ['AWS_S3_BUCKET_REGION'],
-        host=os.environ['AWS_S3_BUCKET_HOST'],
+        region=env['AWS_S3_BUCKET_REGION'],
+        host=env['AWS_S3_BUCKET_HOST'],
         verify_certs=True,
-        name=os.environ['AWS_S3_BUCKET_NAME'],
+        name=env['AWS_S3_BUCKET_NAME'],
     )
     s3_context = get_s3_context(session, credentials, bucket)
 
     users = {
-        os.environ['FTP_USER_LOGIN']: os.environ['FTP_USER_PASSWORD'],
+        env['FTP_USER_LOGIN']: env['FTP_USER_PASSWORD'],
     }
 
     async def is_user_correct(user):
