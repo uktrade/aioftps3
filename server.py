@@ -32,6 +32,7 @@ from server_s3 import (
     s3_list,
     s3_mkdir,
     s3_put,
+    s3_rename,
     s3_rmdir,
 )
 
@@ -56,7 +57,7 @@ from server_utils import (
 )
 
 # How long a command has to complete
-COMMAND_TIMEOUT_SECONDS = 15
+COMMAND_TIMEOUT_SECONDS = 60
 
 # How long a client has to connect to the PASV server once it's requested
 DATA_CONNECT_TIMEOUT_SECONDS = 10
@@ -112,6 +113,8 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
     is_authenticated = False
     ssl_sock = None
     cwd = PurePosixPath('/')
+
+    rename_from = None
 
     data_server = None
     data_client = None
@@ -294,6 +297,22 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
         await data_funcs.put(data_task_func)
         await command_responses.put(b'150 File status okay; about to open data connection.')
 
+    async def command_rnfr(arg):
+        nonlocal rename_from
+        rename_from = to_absolute_path(arg)
+        await command_responses.put(b'230 Requested file action okay, completed.')
+
+    async def command_rnto(arg):
+        nonlocal rename_from
+
+        _rename_to = to_absolute_path(arg)
+        _rename_from = rename_from
+        rename_from = None
+
+        await s3_rename(logger, s3_context, _rename_from, _rename_to)
+
+        await command_responses.put(b'230 Requested file action okay, completed.')
+
     async def command_pasv(_):
         nonlocal data_port
         nonlocal data_server
@@ -414,9 +433,11 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
             (command == 'PROT' and is_ssl and not is_authenticated and not user) or \
             (command == 'PBSZ' and is_ssl and not is_authenticated and not user) or \
             (command == 'PASV' and is_ssl and is_authenticated and not data_port) or \
+            (command == 'RNTO' and is_ssl and is_authenticated and rename_from is not None) or \
             (command in {'LIST', 'STOR', 'RETR'} and is_authenticated and data_client) or \
             (command not in {'AUTH', 'USER', 'PASS',
-                             'PASV', 'LIST', 'STOR', 'RETR'} and is_ssl and is_authenticated)
+                             'PASV', 'LIST', 'STOR', 'RETR',
+                             'RNTO'} and is_ssl and is_authenticated)
 
         return is_good
 

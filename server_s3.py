@@ -164,8 +164,9 @@ async def s3_put(logger, context, path):
         yield write
 
 
-async def s3_rename(_, __, ___):
-    raise NotImplementedError
+async def s3_rename(logger, context, rename_from, rename_to):
+    async with context.lock(logger, [rename_from, rename_to]):
+        return await _rename(logger, context, rename_from, rename_to)
 
 
 def _key(path):
@@ -231,6 +232,58 @@ async def _rmdir(logger, context, path):
 
     for key in sorted(keys, key=delete_sort_key, reverse=True):
         response, _ = await _s3_request_full(logger, context, 'DELETE', '/' + key.key, {}, {},
+                                             b'', _hash(b''))
+        response.raise_for_status()
+
+
+async def _rename(logger, context, rename_from, rename_to):
+    # The source must exist...
+    from_exists = await _exists(logger, context, rename_from)
+    if not from_exists:
+        raise Exception('The source file does not exist')
+
+    # ... the target must not...
+    to_exists = await _exists(logger, context, rename_to)
+    if to_exists:
+        raise Exception('The target file already exists')
+
+    # ... we find the list of keys to rename from/to
+
+    source_is_dir = await _is_dir(logger, context, rename_from)
+    rename_from_key = _key(rename_from)
+    rename_to_key = _key(rename_to)
+
+    def replace_key_prefix(old_key):
+        return rename_to_key + old_key[len(rename_from_key):]
+
+    from_keys = \
+        [
+            key.key
+            for key in await _list_descendant_keys(logger, context, _dir_key(rename_from))
+        ] if source_is_dir else \
+        [rename_from_key]
+
+    to_keys = [replace_key_prefix(key) for key in from_keys]
+
+    renames = list(zip(from_keys, to_keys))
+
+    # ... we copy everything first...
+
+    def sort_key(keys):
+        return (keys[0].count('/'), keys[0])
+
+    for from_key, to_key in sorted(renames, key=sort_key, reverse=True):
+        headers = {
+            'x-amz-copy-source': f'/{context.bucket.name}/{from_key}',
+        }
+        response, _ = await _s3_request_full(logger, context, 'PUT', '/' + to_key, {}, headers,
+                                             b'', _hash(b''))
+        response.raise_for_status()
+
+    # ... and then delete the originals
+
+    for from_key, _ in sorted(renames, key=sort_key, reverse=True):
+        response, _ = await _s3_request_full(logger, context, 'DELETE', '/' + from_key, {}, {},
                                              b'', _hash(b''))
         response.raise_for_status()
 
@@ -504,7 +557,8 @@ def _hash(payload):
 async def _s3_request_full(logger, context, method, path, query, api_pre_auth_headers,
                            payload, payload_hash):
 
-    with logged(logger, 'Request: %s %s %s %s', [method, context.bucket.host, path, query]):
+    with logged(logger, 'Request: %s %s %s %s %s',
+                [method, context.bucket.host, path, query, api_pre_auth_headers]):
         async with await _s3_request(context, method, path, query, api_pre_auth_headers,
                                      payload, payload_hash) as result:
             return result, await result.read()
