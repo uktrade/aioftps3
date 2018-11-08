@@ -92,7 +92,7 @@ DATA_CHUNK_SIZE = 1024 * 64
 # prevent race conditions
 
 
-async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
+async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_ports,
                             is_user_correct, is_password_correct, s3_context):
     user = None
     is_authenticated = False
@@ -341,7 +341,9 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
 
         data_port_higher = str(data_port >> 8).encode('ascii')
         data_port_lower = str(data_port & 0xff).encode('ascii')
-        response = b'227 Entering Passive Mode (0,0,0,0,%s,%s)' % (
+        data_ip = [part.encode('ascii') for part in (await get_data_ip()).split('.')]
+        response = b'227 Entering Passive Mode (%s,%s,%s,%s,%s,%s)' % (
+            data_ip[0], data_ip[1], data_ip[2], data_ip[3],
             data_port_higher, data_port_lower)
 
         await command_responses.put(response)
@@ -455,8 +457,11 @@ async def async_main(loop, logger, ssl_context):
         return constant_time_compare(users[user], possible_password)
 
     async def _on_client_connect(logger, loop, ssl_context, sock):
-        await on_client_connect(logger, loop, ssl_context, sock, data_ports,
+        await on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_ports,
                                 is_user_correct, is_password_correct, s3_context)
+
+    async def get_data_ip():
+        return '0.0.0.0'
 
     try:
         await server(logger, loop, ssl_context, command_port,
