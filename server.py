@@ -53,9 +53,12 @@ from server_utils import (
 # How long a command has to complete
 COMMAND_TIMEOUT_SECONDS = 15
 
-# How long a client has to connect for a command that requires a data
-# connection Must be smaller than COMMAND_TIMEOUT_SECONDS
+# How long a client has to connect to the PASV server once it's requested
 DATA_CONNECT_TIMEOUT_SECONDS = 10
+
+# How long a client has to issue the command to use the PASV server after
+# the client has connected to it
+DATA_COMMAND_TIMEOUT_SECONDS = 2
 
 COMMAND_CHUNK_BYTES = 1024
 DATA_CHUNK_SIZE = 1024 * 64
@@ -255,8 +258,6 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
 
         await data_funcs.put(data_task_func)
         await command_responses.put(b'150 File status okay; about to open data connection.')
-        async with timeout(loop, DATA_CONNECT_TIMEOUT_SECONDS):
-            await data_funcs.join()
 
     async def command_retr(arg):
         s3_path = to_absolute_path(arg)
@@ -267,8 +268,6 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
 
         await data_funcs.put(data_task_func)
         await command_responses.put(b'150 File status okay; about to open data connection.')
-        async with timeout(loop, DATA_CONNECT_TIMEOUT_SECONDS):
-            await data_funcs.join()
 
     async def command_stor(arg):
         s3_path = to_absolute_path(arg)
@@ -280,28 +279,18 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
 
         await data_funcs.put(data_task_func)
         await command_responses.put(b'150 File status okay; about to open data connection.')
-        async with timeout(loop, DATA_CONNECT_TIMEOUT_SECONDS):
-            await data_funcs.join()
 
     async def command_pasv(_):
         nonlocal data_port
         nonlocal data_server
 
-        # A short lived future that resolves when the data server is actually
-        # accepting connections: the server is in another task which isn't
-        # guaranteed to run before the client connects to the data port
-        accepting = asyncio.Future()
-
-        def on_data_server_accepting():
-            if not accepting.done():
-                accepting.set_result(None)
+        data_client_connected = asyncio.Future()
 
         async def on_data_client_connect(data_client_logger, __, ____, data_sock):
             nonlocal data_client
 
-            # Raise if we have an unexpected data client, but keeping the
-            # server running to not interfere with the running connection
-            func = data_funcs.get_nowait()
+            # Raise if this is the second, and so unexpected, client
+            data_client_connected.set_result(None)
 
             data_client = asyncio.current_task()
 
@@ -310,14 +299,18 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
             data_server.cancel()
             await asyncio.sleep(0)
 
-            with logged(data_client_logger, 'Performing TLS handshake', []):
-                ssl_data_sock = ssl_get_socket(ssl_context, data_sock)
-                await ssl_complete_handshake(loop, ssl_data_sock)
-
             try:
+                with logged(data_client_logger, 'Performing TLS handshake', []):
+                    ssl_data_sock = ssl_get_socket(ssl_context, data_sock)
+                    await ssl_complete_handshake(loop, ssl_data_sock)
+
+                async with timeout(loop, DATA_COMMAND_TIMEOUT_SECONDS):
+                    func = await data_funcs.get()
+
                 await func(ssl_data_sock)
             finally:
                 data_funcs.task_done()
+                data_client = None
                 await command_responses.put(b'226 Closing data connection.')
                 data_sock = await ssl_unwrap_socket(loop, ssl_data_sock, data_sock)
                 await shutdown_socket(loop, data_sock)
@@ -343,7 +336,6 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
         data_ports.remove(data_port)
         data_logger = get_child_logger(logger, 'data')
         data_server = loop.create_task(server(data_logger, loop, ssl_context, data_port,
-                                              on_data_server_accepting,
                                               on_data_client_connect, on_data_server_cancel))
         data_server.add_done_callback(on_data_server_close)
 
@@ -352,8 +344,17 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
         response = b'227 Entering Passive Mode (0,0,0,0,%s,%s)' % (
             data_port_higher, data_port_lower)
 
-        await accepting
         await command_responses.put(response)
+
+        try:
+            async with timeout(loop, DATA_CONNECT_TIMEOUT_SECONDS):
+                await data_client_connected
+        except BaseException:
+            for task in [data_client, data_server]:
+                if task:
+                    task.cancel()
+                    await asyncio.sleep(0)
+            raise
 
     async def command_quit(_):
         await command_responses.put(b'221 Service closing control connection.')
@@ -378,7 +379,9 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
             (command == 'PROT' and is_ssl and not is_authenticated and not user) or \
             (command == 'PBSZ' and is_ssl and not is_authenticated and not user) or \
             (command == 'PASV' and is_ssl and is_authenticated and not data_port) or \
-            (command not in {'AUTH', 'USER', 'PASS', 'PASV'} and is_ssl and is_authenticated)
+            (command in {'LIST', 'STOR', 'RETR'} and is_authenticated and data_client) or \
+            (command not in {'AUTH', 'USER', 'PASS',
+                             'PASV', 'LIST', 'STOR', 'RETR'} and is_ssl and is_authenticated)
 
         return is_good
 
@@ -456,15 +459,12 @@ async def async_main(loop, logger, ssl_context):
     async def is_password_correct(user, possible_password):
         return constant_time_compare(users[user], possible_password)
 
-    def on_accepting():
-        pass
-
     async def _on_client_connect(logger, loop, ssl_context, sock):
         await on_client_connect(logger, loop, ssl_context, sock, data_ports,
                                 is_user_correct, is_password_correct, s3_context)
 
     try:
-        await server(logger, loop, ssl_context, command_port, on_accepting,
+        await server(logger, loop, ssl_context, command_port,
                      _on_client_connect, cancel_client_tasks)
     except asyncio.CancelledError:
         pass
@@ -496,13 +496,10 @@ async def healthcheck(loop, logger, ssl_context):
     async def on_healthcheck_client_connect(_, loop, __, sock):
         await shutdown_socket(loop, sock)
 
-    def on_accepting():
-        pass
-
     healthcheck_port = int(os.environ['HEALTHCHECK_PORT'])
     ssl_context = None
     try:
-        await server(logger, loop, ssl_context, healthcheck_port, on_accepting,
+        await server(logger, loop, ssl_context, healthcheck_port,
                      on_healthcheck_client_connect, cancel_client_tasks)
     except asyncio.CancelledError:
         pass
