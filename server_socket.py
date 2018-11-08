@@ -51,7 +51,7 @@ class SocketClosed(Exception):
     pass
 
 
-async def server(logger, loop, ssl_context, port, client_handler, on_cancel):
+async def server(logger, loop, ssl_context, port, on_listening, client_handler, on_cancel):
 
     with logged(logger, 'Starting server on %s', [port]):
         sock = socket(family=AF_INET, type=SOCK_STREAM, proto=IPPROTO_TCP)
@@ -81,7 +81,7 @@ async def server(logger, loop, ssl_context, port, client_handler, on_cancel):
     try:
         with logged(logger, 'Listening for clients', []):
             while True:
-                client_sock, address = await sock_accept(loop, sock)
+                client_sock, address = await sock_accept(loop, sock, on_listening)
                 unique_id = str(uuid4())[:8]
                 client_logger = get_child_logger(logger, unique_id)
                 client_logger.debug('Connection from %s', address)
@@ -99,16 +99,16 @@ async def server(logger, loop, ssl_context, port, client_handler, on_cancel):
         sock.shutdown(SHUT_RDWR)
 
 
-async def sock_accept(loop, sock):
+async def sock_accept(loop, sock, on_listening):
     fileno = sock.fileno()
     try:
-        return await _sock_accept(loop, sock)
+        return await _sock_accept(loop, sock, on_listening)
     except CancelledError:
         loop.remove_reader(fileno)
         raise
 
 
-def _sock_accept(loop, sock):
+def _sock_accept(loop, sock, on_listening):
     fileno = sock.fileno()
     done = Future()
 
@@ -116,9 +116,12 @@ def _sock_accept(loop, sock):
         try:
             conn, address = sock.accept()
             conn.setblocking(False)
+            on_listening(True)
         except BlockingIOError:
             add_reader()
+            on_listening(True)
         except BaseException as exception:
+            on_listening(False)
             if not done.cancelled():
                 done.set_exception(exception)
         else:
