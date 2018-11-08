@@ -232,12 +232,12 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
 
     async def command_mkd(arg):
         s3_path = to_absolute_path(arg)
-        await s3_mkdir(s3_context, s3_path)
+        await s3_mkdir(logger, s3_context, s3_path)
         await command_responses.put(b'230 Requested file action okay, completed.')
 
     async def command_rmd(arg):
         s3_path = to_absolute_path(arg)
-        await s3_rmdir(s3_context, s3_path)
+        await s3_rmdir(logger, s3_context, s3_path)
         await command_responses.put(b'230 Requested file action okay, completed.')
 
     async def command_cdup(_):
@@ -252,14 +252,14 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
 
     async def command_dele(arg):
         s3_path = to_absolute_path(arg)
-        await s3_delete(s3_context, s3_path)
+        await s3_delete(logger, s3_context, s3_path)
         await command_responses.put(b'230 Requested file action okay, completed.')
 
     async def command_list(_):
         s3_path = cwd
 
         async def data_task_func(ssl_data_sock):
-            async for list_path in await s3_list(s3_context, s3_path):
+            async for list_path in await s3_list(logger, s3_context, s3_path):
                 await data_sock_send_line(ssl_data_sock, (
                     stat.filemode(list_path.stat.st_mode) + ' ' +
                     str(list_path.stat.st_nlink) + ' ' +
@@ -277,7 +277,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
         s3_path = to_absolute_path(arg)
 
         async def data_task_func(ssl_data_sock):
-            async for data in s3_get(s3_context, s3_path, DATA_CHUNK_SIZE):
+            async for data in s3_get(logger, s3_context, s3_path, DATA_CHUNK_SIZE):
                 await data_sock_send_all(ssl_data_sock, data)
 
         await data_funcs.put(data_task_func)
@@ -287,7 +287,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
         s3_path = to_absolute_path(arg)
 
         async def data_task_func(ssl_data_sock):
-            async with s3_put(s3_context, s3_path) as write:
+            async with s3_put(logger, s3_context, s3_path) as write:
                 async for data in recv_until_close(loop, lambda: ssl_data_sock, DATA_CHUNK_SIZE):
                     await write(data)
 
