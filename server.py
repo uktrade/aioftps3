@@ -298,7 +298,16 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
         nonlocal data_port
         nonlocal data_server
 
+        data_server_listening = asyncio.Future()
         data_client_connected = asyncio.Future()
+
+        def on_data_server_listening(success):
+            if data_server_listening.done():
+                return
+            if success:
+                data_server_listening.set_result(None)
+            else:
+                data_server_listening.set_exception(Exception('Unable to listen'))
 
         async def on_data_client_connect(data_client_logger, __, ____, data_sock):
             nonlocal data_client
@@ -353,19 +362,24 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
         data_ports.remove(data_port)
         data_logger = get_child_logger(logger, 'data')
         data_server = loop.create_task(server(data_logger, loop, ssl_context, data_port,
-                                              on_data_client_connect, on_data_server_cancel))
+                                              on_data_server_listening, on_data_client_connect,
+                                              on_data_server_cancel))
         data_server.add_done_callback(on_data_server_close)
 
         data_port_higher = str(data_port >> 8).encode('ascii')
         data_port_lower = str(data_port & 0xff).encode('ascii')
         data_ip = [part.encode('ascii') for part in (await get_data_ip(get_sock())).split('.')]
+
         response = b'227 Entering Passive Mode (%s,%s,%s,%s,%s,%s)' % (
             data_ip[0], data_ip[1], data_ip[2], data_ip[3],
             data_port_higher, data_port_lower)
 
-        await command_responses.put(response)
-
         try:
+            # No timeout: we're waiting for the task sheduler to get through to the point
+            # where we're listening for a connection, and not waiting for a remote party
+            await data_server_listening
+            await command_responses.put(response)
+
             async with timeout(loop, DATA_CONNECT_TIMEOUT_SECONDS):
                 await data_client_connected
         except BaseException:
@@ -546,12 +560,15 @@ async def async_main(loop, logger, ssl_context):
 
         return command_subnet_cidr == data_subnet_cidr
 
+    def on_listening(_):
+        pass
+
     async def _on_client_connect(logger, loop, ssl_context, sock):
         await on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_ports,
                                 is_data_sock_ok, is_user_correct, is_password_correct, s3_context)
 
     try:
-        await server(logger, loop, ssl_context, command_port,
+        await server(logger, loop, ssl_context, command_port, on_listening,
                      _on_client_connect, cancel_client_tasks)
     except asyncio.CancelledError:
         pass
@@ -580,13 +597,16 @@ async def async_main(loop, logger, ssl_context):
 # Maybe this isn't the best long term strategy, but ok for now.
 async def healthcheck(loop, logger, ssl_context):
 
+    def on_listening(_):
+        pass
+
     async def on_healthcheck_client_connect(_, loop, __, sock):
         await shutdown_socket(loop, sock)
 
     healthcheck_port = int(os.environ['HEALTHCHECK_PORT'])
     ssl_context = None
     try:
-        await server(logger, loop, ssl_context, healthcheck_port,
+        await server(logger, loop, ssl_context, healthcheck_port, on_listening,
                      on_healthcheck_client_connect, cancel_client_tasks)
     except asyncio.CancelledError:
         pass
