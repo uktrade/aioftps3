@@ -3,6 +3,44 @@ import contextlib
 import itertools
 
 
+class ExpiringDict:
+
+    def __init__(self, loop, seconds):
+        self._loop = loop
+        self._seconds = seconds
+        self._store = {}
+
+    def __getitem__(self, key):
+        return self._store[key][0]
+
+    def __setitem__(self, key, value):
+        def delete():
+            del self._store[key]
+
+        if key in self._store:
+            self._store[key][1].cancel()
+            del self._store[key]
+
+        delete_handle = self._loop.call_later(self._seconds, delete)
+        self._store[key] = (value, delete_handle)
+
+    def __contains__(self, key):
+        return key in self._store
+
+
+class ExpiringSet:
+
+    def __init__(self, loop, seconds):
+        self._loop = loop
+        self._store = ExpiringDict(loop, seconds)
+
+    def add(self, item):
+        self._store[item] = True
+
+    def __contains__(self, item):
+        return item in self._store
+
+
 def constant_time_compare(str_a, str_b):
     bytes_a = str_a.encode('utf-8')
     bytes_b = str_b.encode('utf-8')

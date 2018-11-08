@@ -48,6 +48,8 @@ from server_socket import (
 )
 
 from server_utils import (
+    ExpiringDict,
+    ExpiringSet,
     constant_time_compare,
     normalise_environment,
     timeout,
@@ -65,6 +67,15 @@ DATA_COMMAND_TIMEOUT_SECONDS = 2
 
 COMMAND_CHUNK_BYTES = 1024
 DATA_CHUNK_SIZE = 1024 * 64
+
+# The window of time when failed logins are counted
+LOGIN_FAILED_ATTEMPTS_WINDOW_SECONDS = 60 * 60 * 24
+
+# How many failed attempts in the window
+LOGIN_FAILED_ATTEMPTS_MAX_BEFORE_LOGOUT = 5
+
+# How long a lockout will last
+LOGIN_LOCKOUT_SECONDS = 60 * 30
 
 
 # We are very specific in terms of tasks created:
@@ -206,7 +217,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
         nonlocal is_authenticated
 
         attempted_password = arg.decode('utf-8')
-        is_ok = await is_password_correct(user, attempted_password)
+        is_ok = await is_password_correct(logger, user, attempted_password)
 
         if not is_ok:
             await command_responses.put(b'530 Not logged in.')
@@ -461,11 +472,35 @@ async def async_main(loop, logger, ssl_context):
     data_cidrs = env['FTP_DATA_CIDR_TO_DOMAINS']
     resolver = aiodns.DNSResolver(loop=loop)
 
+    num_failed_logins = ExpiringDict(loop, LOGIN_FAILED_ATTEMPTS_WINDOW_SECONDS)
+    locked_out_users = ExpiringSet(loop, LOGIN_LOCKOUT_SECONDS)
+
     async def is_user_correct(user):
         return user in users
 
-    async def is_password_correct(user, possible_password):
-        return constant_time_compare(users[user], possible_password)
+    async def is_password_correct(logger, user, possible_password):
+        if user in locked_out_users:
+            logger.debug('%s: Locked out user attempting login.', user)
+            return False
+
+        if constant_time_compare(users[user], possible_password):
+            logger.debug('%s: Password is correct. Allowing login.', user)
+            return True
+
+        if user not in num_failed_logins:
+            num_failed_logins[user] = 1
+        else:
+            num_failed_logins[user] += 1
+
+        logger.debug('%s: Failed login attempt %s', user, num_failed_logins[user])
+
+        if num_failed_logins[user] > LOGIN_FAILED_ATTEMPTS_MAX_BEFORE_LOGOUT:
+            logger.debug('%s: Too many failed login attempts in %s seconds. '
+                         'Locking out for %s seconds.',
+                         user, LOGIN_FAILED_ATTEMPTS_WINDOW_SECONDS, LOGIN_LOCKOUT_SECONDS)
+            locked_out_users.add(user)
+
+        return False
 
     async def get_data_ip(command_sock):
         # - Not all clients handle PASV returning a private IP or 0.0.0.0
