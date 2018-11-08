@@ -350,16 +350,18 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
             async with timeout(loop, DATA_CONNECT_TIMEOUT_SECONDS):
                 await data_client_connected
         except BaseException:
-            for task in [data_client, data_server]:
-                if task:
-                    task.cancel()
-                    await asyncio.sleep(0)
+            await cancel_data_tasks()
             raise
 
     async def command_quit(_):
         await command_responses.put(b'221 Service closing control connection.')
         await command_responses.join()
         await cancel_current_task()
+
+    async def cancel_data_tasks():
+        for task in [task for task in [data_client, data_server] if task]:
+            task.cancel()
+            await asyncio.sleep(0)
 
     def get_command_func(parent_locals, command):
         command_lower = command.lower()
@@ -408,14 +410,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
     try:
         await main_client_loop(locals())
     finally:
-        if data_client:
-            data_client.cancel()
-            await asyncio.sleep(0)
-
-        if data_server:
-            data_server.cancel()
-            await asyncio.sleep(0)
-
+        await cancel_data_tasks()
         send_command_responses_task.cancel()
         await asyncio.sleep(0)
 
