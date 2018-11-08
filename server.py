@@ -96,7 +96,7 @@ DATA_CHUNK_SIZE = 1024 * 64
 
 
 async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_ports,
-                            is_user_correct, is_password_correct, s3_context):
+                            is_data_sock_ok, is_user_correct, is_password_correct, s3_context):
     user = None
     is_authenticated = False
     ssl_sock = None
@@ -295,6 +295,9 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
             # Raise if this is the second, and so unexpected, client
             data_client_connected.set_result(None)
 
+            if not await is_data_sock_ok(get_sock(), data_sock):
+                raise Exception('Data sock is not ok: could be an attack')
+
             data_client = asyncio.current_task()
 
             # If we do have an expected data client, we cancel the server
@@ -485,9 +488,32 @@ async def async_main(loop, logger, ssl_context):
 
         return ((await resolver.query(matching_domain, 'A'))[0]).host
 
+    async def is_data_sock_ok(command_sock, data_sock):
+        # We don't have the actual client IP, so we can't check that the data sock is from the same
+        # IP. The best we can do is check that the data request comes from same load balancer
+        # subnet
+        #
+        # Also, apparently PASV mode data connections should be from the client's command port + 1,
+        # However, this is not observed in the clients tested, so we don't check that
+        command_ip = ipaddress.IPv4Network(command_sock.getpeername()[0] + '/32')
+        data_ip = ipaddress.IPv4Network(data_sock.getpeername()[0] + '/32')
+
+        command_subnet_cidr = [
+            cidr['CIDR']
+            for cidr in data_cidrs
+            if command_ip.subnet_of(ipaddress.IPv4Network(cidr['CIDR']))
+        ]
+        data_subnet_cidr = [
+            cidr['CIDR']
+            for cidr in data_cidrs
+            if data_ip.subnet_of(ipaddress.IPv4Network(cidr['CIDR']))
+        ]
+
+        return command_subnet_cidr == data_subnet_cidr
+
     async def _on_client_connect(logger, loop, ssl_context, sock):
         await on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_ports,
-                                is_user_correct, is_password_correct, s3_context)
+                                is_data_sock_ok, is_user_correct, is_password_correct, s3_context)
 
     try:
         await server(logger, loop, ssl_context, command_port,
