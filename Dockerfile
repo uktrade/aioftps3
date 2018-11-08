@@ -7,12 +7,16 @@ ENV \
 
 RUN \
     apk add --no-cache \
+        build-base==0.5-r1 && \
+    apk add --no-cache \
         openssl=1.0.2p-r0 \
         tini=0.18.0-r0 && \
     python3 -m ensurepip && \
     pip3 install pip==18.01 && \
     pip3 install \
-        aiohttp==3.4.4
+        aiodns==1.1.1 \
+        aiohttp==3.4.4 && \
+    apk del build-base
 
 COPY entrypoint.sh /entrypoint.sh
 COPY server.py /server.py
