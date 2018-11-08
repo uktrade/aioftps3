@@ -421,6 +421,12 @@ async def on_client_connect(logger, loop, ssl_context, sock, data_ports,
         await shutdown_socket(loop, sock)
 
 
+async def cancel_client_tasks(client_tasks):
+    for child in list(client_tasks):
+        child.cancel()
+        await asyncio.sleep(0)
+
+
 async def async_main(loop, logger, ssl_context):
     command_port = int(os.environ['FTP_COMMAND_PORT'])
     data_ports_first = int(os.environ['FTP_DATA_PORTS_FIRST'])
@@ -457,14 +463,9 @@ async def async_main(loop, logger, ssl_context):
         await on_client_connect(logger, loop, ssl_context, sock, data_ports,
                                 is_user_correct, is_password_correct, s3_context)
 
-    async def on_cancel(child_tasks):
-        for child in list(child_tasks):
-            child.cancel()
-            await asyncio.sleep(0)
-
     try:
         await server(logger, loop, ssl_context, command_port, on_accepting,
-                     _on_client_connect, on_cancel)
+                     _on_client_connect, cancel_client_tasks)
     except asyncio.CancelledError:
         pass
     except BaseException:
@@ -498,15 +499,11 @@ async def healthcheck(loop, logger, ssl_context):
     def on_accepting():
         pass
 
-    async def on_cancel(_):
-        # No child tasks to cancel
-        pass
-
     healthcheck_port = int(os.environ['HEALTHCHECK_PORT'])
     ssl_context = None
     try:
         await server(logger, loop, ssl_context, healthcheck_port, on_accepting,
-                     on_healthcheck_client_connect, on_cancel)
+                     on_healthcheck_client_connect, cancel_client_tasks)
     except asyncio.CancelledError:
         pass
 
