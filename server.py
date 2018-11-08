@@ -464,10 +464,6 @@ async def async_main(loop, logger, ssl_context):
     async def is_password_correct(user, possible_password):
         return constant_time_compare(users[user], possible_password)
 
-    async def _on_client_connect(logger, loop, ssl_context, sock):
-        await on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_ports,
-                                is_user_correct, is_password_correct, s3_context)
-
     async def get_data_ip(command_sock):
         # - Not all clients handle PASV returning a private IP or 0.0.0.0
         # - We run behind multiple balancers, with different IPs the clients
@@ -488,6 +484,10 @@ async def async_main(loop, logger, ssl_context):
         ][0]
 
         return ((await resolver.query(matching_domain, 'A'))[0]).host
+
+    async def _on_client_connect(logger, loop, ssl_context, sock):
+        await on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_ports,
+                                is_user_correct, is_password_correct, s3_context)
 
     try:
         await server(logger, loop, ssl_context, command_port,
