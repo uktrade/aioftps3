@@ -52,8 +52,8 @@ async def cancel_client_tasks(client_tasks):
         await asyncio.sleep(0)
 
 
-async def async_main(loop, logger, ssl_context):
-    env = normalise_environment(os.environ)
+async def async_main(loop, environ, logger, ssl_context):
+    env = normalise_environment(environ)
 
     command_port = int(env['FTP_COMMAND_PORT'])
     data_ports_first = int(env['FTP_DATA_PORTS_FIRST'])
@@ -234,7 +234,7 @@ def main():
     logger.addHandler(handler)
 
     logger_with_context = get_logger_with_context(logger, 'ftps3')
-    main_task = loop.create_task(async_main(loop, logger_with_context, ssl_context))
+    main_task = loop.create_task(async_main(loop, os.environ, logger_with_context, ssl_context))
     loop.add_signal_handler(signal.SIGINT, main_task.cancel)
     loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
 
