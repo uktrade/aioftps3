@@ -526,13 +526,13 @@ async def _list_keys(logger, context, key_prefix, delimeter):
     common_query = {
         'max-keys': '1000',
         'list-type': '2',
+        'delimiter': delimeter,
+        'prefix': key_prefix,
     }
 
     async def _list_first_page():
         query = {
             **common_query,
-            'delimiter': delimeter,
-            'prefix': key_prefix,
         }
         response, body = await _s3_request_full(logger, context, 'GET', '/', query, {},
                                                 b'', _hash(b''))
