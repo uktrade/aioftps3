@@ -31,12 +31,12 @@
       "value": "${aws_s3_bucket_region}"
     },
     {
-      "name": "FTP_USER_LOGIN",
-      "value": "${ftp_user_login}"
+      "name": "FTP_USERS__1__LOGIN",
+      "value": "${ftp_users__1__login}"
     },
     {
-      "name": "FTP_USER_PASSWORD",
-      "value": "${ftp_user_password}"
+      "name": "FTP_USERS__1__PASSWORD",
+      "value": "${ftp_users__1__password}"
     },
     {
       "name": "FTP_COMMAND_PORT",

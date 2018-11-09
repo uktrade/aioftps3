@@ -509,7 +509,8 @@ async def async_main(loop, logger, ssl_context):
     s3_context = get_s3_context(session, credentials, bucket)
 
     users = {
-        env['FTP_USER_LOGIN']: env['FTP_USER_PASSWORD'],
+        user['LOGIN']: user['PASSWORD']
+        for user in env['FTP_USERS']
     }
 
     data_cidrs = env['FTP_DATA_CIDR_TO_DOMAINS']
