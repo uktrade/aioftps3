@@ -5,6 +5,7 @@ from collections import (
 from ftplib import (
     FTP_TLS,
     error_perm,
+    error_temp,
 )
 import logging
 import re
@@ -170,6 +171,31 @@ class TestAioFtpS3(unittest.TestCase):
 
         await loop.run_in_executor(None, get_data)
         self.assertEqual(data, b'Some contents')
+
+    @async_test
+    async def test_if_dir_not_exist_then_no_stor(self):
+        loop = await self.setup_manual()
+
+        def file():
+            contents = (block for block in [b'Some contents'])
+
+            def read(_):
+                try:
+                    return next(contents)
+                except StopIteration:
+                    return b''
+
+            return Readable(read=read)
+
+        def stor():
+            with FTP_TLS() as ftp:
+                ftp.connect(host='localhost', port=8021)
+                ftp.login(user='my-user', passwd='my-password')
+                ftp.prot_p()
+                ftp.storbinary('STOR subdirectory/file.bin', file())
+
+        with self.assertRaises(error_temp):
+            await loop.run_in_executor(None, stor)
 
     @async_test
     async def test_create_and_delete_directories(self):
