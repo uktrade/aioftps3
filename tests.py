@@ -101,7 +101,7 @@ def env():
         'FTP_COMMAND_PORT': '8021',
         'FTP_DATA_PORTS_FIRST': '4001',
         'FTP_DATA_PORTS_COUNT': '2',
-        'FTP_DATA_CIDR_TO_DOMAINS__1__CIDR': '0.0.0.0/32',
-        'FTP_DATA_CIDR_TO_DOMAINS__1__DOMAIN': '0.0.0.0',
+        'FTP_DATA_CIDR_TO_DOMAINS__1__CIDR': '0.0.0.0/0',
+        'FTP_DATA_CIDR_TO_DOMAINS__1__DOMAIN': '127.0.0.1',
         'HEALTHCHECK_PORT': '8022',
     }
