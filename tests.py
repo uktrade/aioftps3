@@ -125,7 +125,7 @@ class TestAioFtpS3(unittest.TestCase):
         self.assertEqual(lines, [])
 
     @async_test
-    async def test_stor_then_list(self):
+    async def test_stor_then_list_and_retr(self):
         loop = await self.setup_manual()
 
         def file():
@@ -152,6 +152,21 @@ class TestAioFtpS3(unittest.TestCase):
         match = re.match(LIST_REGEX, lines[0])
         self.assertEqual(match[1], 'p')
         self.assertEqual(match[6], 'myfile.bin')
+
+        data = bytearray()
+
+        def on_incoming(incoming_data):
+            data.extend(bytearray(incoming_data))
+
+        def get_data():
+            with FTP_TLS() as ftp:
+                ftp.connect(host='localhost', port=8021)
+                ftp.login(user='my-user', passwd='my-password')
+                ftp.prot_p()
+                ftp.retrbinary('RETR myfile.bin', on_incoming)
+
+        await loop.run_in_executor(None, get_data)
+        self.assertEqual(data, b'Some contents')
 
 
 def ftp_list(ftp):
