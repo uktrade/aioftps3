@@ -18,11 +18,15 @@ RUN \
         aiohttp==3.4.4 && \
     apk del build-base
 
+COPY ["README.md", "setup.py", "/"]
+COPY aioftps3 aioftps3
+
+RUN pip install --no-dependencies -e .
+
 COPY entrypoint.sh /entrypoint.sh
-COPY aioftps3 /
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["python3", "server_main.py"]
+CMD ["python3", "-m", "aioftps3.server_main"]
 
 RUN adduser -S ftps
 USER ftps

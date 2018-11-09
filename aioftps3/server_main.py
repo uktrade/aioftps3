@@ -12,23 +12,23 @@ import sys
 import aiodns
 import aiohttp
 
-from server import (
+from aioftps3.server import (
     on_client_connect,
 )
-from server_logger import (
+from aioftps3.server_logger import (
     get_logger_with_context,
 )
-from server_s3 import (
+from aioftps3.server_s3 import (
     get_s3_bucket,
     get_s3_context,
     get_s3_ecs_role_credentials,
     get_s3_secret_access_key_credentials,
 )
-from server_socket import (
+from aioftps3.server_socket import (
     server,
     shutdown_socket,
 )
-from server_utils import (
+from aioftps3.server_utils import (
     ExpiringDict,
     ExpiringSet,
     constant_time_compare,

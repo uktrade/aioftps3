@@ -20,7 +20,7 @@ from uuid import (
     uuid4
 )
 
-from server_logger import (
+from aioftps3.server_logger import (
     get_child_logger,
     logged,
 )

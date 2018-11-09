@@ -17,7 +17,7 @@ import urllib
 import weakref
 import xml.etree.ElementTree as ET
 
-from server_logger import (
+from aioftps3.server_logger import (
     logged,
 )
 

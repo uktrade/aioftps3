@@ -5,12 +5,12 @@ from pathlib import (
 import random
 import stat
 
-from server_logger import (
+from aioftps3.server_logger import (
     get_child_logger,
     logged,
 )
 
-from server_s3 import (
+from aioftps3.server_s3 import (
     s3_delete,
     s3_get,
     s3_list,
@@ -20,7 +20,7 @@ from server_s3 import (
     s3_rmdir,
 )
 
-from server_socket import (
+from aioftps3.server_socket import (
     recv_lines,
     recv_until_close,
     send_all,
@@ -32,7 +32,7 @@ from server_socket import (
     ssl_unwrap_socket,
 )
 
-from server_utils import (
+from aioftps3.server_utils import (
     timeout,
 )
 
