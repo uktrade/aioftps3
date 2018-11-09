@@ -163,9 +163,6 @@ async def s3_mkdir(logger, context, path):
 
 async def s3_rmdir(logger, context, path):
     async with context.lock(logger, [path]):
-        if await _is_file(logger, context, path):
-            raise Exception('{} is not a directory'.format(path))
-
         if not await _is_dir(logger, context, path):
             raise Exception('{} does not exist'.format(path))
 
@@ -174,9 +171,6 @@ async def s3_rmdir(logger, context, path):
 
 async def s3_delete(logger, context, path):
     async with context.lock(logger, [path]):
-        if await _is_dir(logger, context, path):
-            raise Exception('{} is a directory'.format(path))
-
         if not await _is_file(logger, context, path):
             raise Exception('{} does not exist'.format(path))
 
@@ -240,7 +234,7 @@ async def _is_dir(logger, context, path):
 async def _is_file(logger, context, path):
     result = \
         False if path == PurePosixPath('/') else \
-        await _file_exists(logger, context, path) and not await _dir_exists(logger, context, path)
+        await _file_exists(logger, context, path)
     return result
 
 
@@ -411,7 +405,11 @@ async def _put(logger, context, path):
             if not await _is_dir(logger, context, path.parent):
                 raise Exception('{} does not exist'.format(path.parent))
 
-            # Overwrites are allowed, so there is no need to check if the file aleady exists
+            if not _is_dir(logger, context, path.parent):
+                raise Exception('{} is a directory'.format(path.parent))
+
+            # Overwrites of files are allowed, so there is no need to check if
+            # the file aleady exists
 
             await _multipart_upload_complete(logger, context, path, upload_id, indexes_and_etags)
 
