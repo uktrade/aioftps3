@@ -309,7 +309,7 @@ async def _rename(logger, context, rename_from, rename_to):
     # ... we copy everything first...
 
     def sort_key(keys):
-        return (keys[0].count('/'), keys[0])
+        return (keys[0].count('/'), len(keys[0]), keys[0])
 
     for from_key, to_key in sorted(renames, key=sort_key, reverse=True):
         headers = {
