@@ -142,17 +142,18 @@ class TestAioFtpS3(unittest.TestCase):
 
         def get_dir_lines():
             with FTP_TLS() as ftp:
+                ftp.encoding = 'utf-8'
                 ftp.connect(host='localhost', port=8021)
                 ftp.login(user='my-user', passwd='my-password')
                 ftp.prot_p()
-                ftp.storbinary('STOR myfile.bin', file())
+                ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', file())
                 return ftp_list(ftp)
 
         lines = await loop.run_in_executor(None, get_dir_lines)
         self.assertEqual(len(lines), 1)
         match = re.match(LIST_REGEX, lines[0])
         self.assertEqual(match[1], 'p')
-        self.assertEqual(match[6], 'myfile.bin')
+        self.assertEqual(match[6], 'my £ 👨‍👩‍👧‍👦 🍰.bin')
 
         data = bytearray()
 
@@ -161,10 +162,11 @@ class TestAioFtpS3(unittest.TestCase):
 
         def get_data():
             with FTP_TLS() as ftp:
+                ftp.encoding = 'utf-8'
                 ftp.connect(host='localhost', port=8021)
                 ftp.login(user='my-user', passwd='my-password')
                 ftp.prot_p()
-                ftp.retrbinary('RETR myfile.bin', on_incoming)
+                ftp.retrbinary('RETR my £ 👨‍👩‍👧‍👦 🍰.bin', on_incoming)
 
         await loop.run_in_executor(None, get_data)
         self.assertEqual(data, b'Some contents')
