@@ -354,10 +354,14 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
                     func = await data_funcs.get()
 
                 await func(ssl_data_sock)
+            except BaseException:
+                await command_responses.put(b'426 Connection closed; transfer aborted.')
+                raise
+            else:
+                await command_responses.put(b'226 Closing data connection.')
             finally:
                 data_funcs.task_done()
                 data_client = None
-                await command_responses.put(b'226 Closing data connection.')
                 data_sock = await ssl_unwrap_socket(loop, ssl_data_sock, data_sock)
                 await shutdown_socket(loop, data_sock)
 
