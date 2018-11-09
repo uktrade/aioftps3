@@ -157,6 +157,9 @@ async def s3_mkdir(logger, context, path):
         if await _exists(logger, context, path):
             raise Exception('{} already exists'.format(path))
 
+        if not await _is_dir(logger, context, path.parent):
+            raise Exception('{} is not a directory'.format(path.parent))
+
         await _mkdir(logger, context, path)
 
 

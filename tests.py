@@ -233,6 +233,22 @@ class TestAioFtpS3(unittest.TestCase):
         lines_after_del = await loop.run_in_executor(None, get_dir_lines)
         self.assertEqual(len(lines_after_del), 0)
 
+    @async_test
+    async def test_if_parent_dir_not_exist_then_no_mkdir(self):
+        loop = await self.setup_manual()
+
+        def mkd(directory):
+            with FTP_TLS() as ftp:
+                ftp.connect(host='localhost', port=8021)
+                ftp.login(user='my-user', passwd='my-password')
+                ftp.prot_p()
+                ftp.mkd(directory)
+
+        with self.assertRaises(BaseException):
+            await loop.run_in_executor(None, mkd, 'subdirectory/new-dir')
+
+        await loop.run_in_executor(None, mkd, 'subdirectory')
+
 
 def ftp_list(ftp):
     lines = []
