@@ -54,6 +54,7 @@ async def cancel_client_tasks(client_tasks):
 
 async def async_main(loop, environ, logger, ssl_context):
     env = normalise_environment(environ)
+    logger_with_context = get_logger_with_context(logger, 'ftps3')
 
     command_port = int(env['FTP_COMMAND_PORT'])
     data_ports_first = int(env['FTP_DATA_PORTS_FIRST'])
@@ -170,17 +171,17 @@ async def async_main(loop, environ, logger, ssl_context):
                                 is_data_sock_ok, is_user_correct, is_password_correct, s3_context)
 
     try:
-        await server(logger, loop, ssl_context, command_port, on_listening,
+        await server(logger_with_context, loop, ssl_context, command_port, on_listening,
                      _on_client_connect, cancel_client_tasks)
     except asyncio.CancelledError:
         pass
     except BaseException:
-        logger.exception('Server exception')
+        logger_with_context.exception('Server exception')
     finally:
-        logger.debug('Server closing... Allowing tasks to cleanup...')
+        logger_with_context.debug('Server closing... Allowing tasks to cleanup...')
         await session.close()
         await asyncio.sleep(1)
-        logger.debug('Server closed.')
+        logger_with_context.debug('Server closed.')
 
 
 # We have an entirely separate port for healthchecks from the NLB. Although
@@ -198,6 +199,7 @@ async def async_main(loop, environ, logger, ssl_context):
 #
 # Maybe this isn't the best long term strategy, but ok for now.
 async def healthcheck(loop, logger, ssl_context):
+    logger_with_context = get_logger_with_context(logger, 'healthcheck')
 
     def on_listening(_):
         pass
@@ -208,7 +210,7 @@ async def healthcheck(loop, logger, ssl_context):
     healthcheck_port = int(os.environ['HEALTHCHECK_PORT'])
     ssl_context = None
     try:
-        await server(logger, loop, ssl_context, healthcheck_port, on_listening,
+        await server(logger_with_context, loop, ssl_context, healthcheck_port, on_listening,
                      on_healthcheck_client_connect, cancel_client_tasks)
     except asyncio.CancelledError:
         pass
@@ -223,8 +225,7 @@ def main():
 
     healthcheck_logger = logging.getLogger('healthcheck')
     healthcheck_logger.setLevel(logging.WARNING)
-    healthcheck_logger_with_context = get_logger_with_context(healthcheck_logger, 'healthcheck')
-    loop.create_task(healthcheck(loop, healthcheck_logger_with_context, ssl_context))
+    loop.create_task(healthcheck(loop, healthcheck_logger, ssl_context))
 
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
@@ -233,14 +234,13 @@ def main():
     handler.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
-    logger_with_context = get_logger_with_context(logger, 'ftps3')
-    main_task = loop.create_task(async_main(loop, os.environ, logger_with_context, ssl_context))
+    main_task = loop.create_task(async_main(loop, os.environ, logger, ssl_context))
     loop.add_signal_handler(signal.SIGINT, main_task.cancel)
     loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
 
     loop.run_until_complete(main_task)
 
-    logger_with_context.debug('Exiting.')
+    logger.debug('Exiting.')
 
 
 if __name__ == '__main__':
