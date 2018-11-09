@@ -11,10 +11,10 @@ setuptools.setup(
     version='0.0.2',
     author='Department for International Trade - WebOps',
     author_email='webops@digital.trade.gov.uk',
-    description='FTP in front of AWS S3, powered by asyncio, aioftp, and aiohttp',
+    description='FTP in front of AWS S3, powered by asyncio and aiohttp',
     long_description=long_description(),
     long_description_content_type='text/markdown',
-    url='https://github.com/uktrade/aioftp-s3',
+    url='https://github.com/uktrade/aioftps3',
     py_modules=[
         'aioftps3',
     ],
