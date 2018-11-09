@@ -37,6 +37,7 @@ DIR_MODE = 0o40777  # stat.S_IFDIR | 0o777
 # The S3 console uses '/' as both the folder separator for
 # navigation, and as the suffix for objects created when
 # you create a folder, so we do exacty the same here
+S3_DIR_SEPARATOR = '/'
 S3_DIR_SUFFIX = '/'
 
 Stat = namedtuple(
@@ -213,7 +214,7 @@ def _key(path):
 def _dir_key(path):
     key = \
         '' if path == PurePosixPath('/') else \
-        path.relative_to(PurePosixPath('/')).as_posix() + '/'
+        path.relative_to(PurePosixPath('/')).as_posix() + S3_DIR_SUFFIX
 
     return key
 
@@ -488,7 +489,7 @@ async def _get(logger, context, path, chunk_size):
 async def _list_immediate_child_paths(logger, context, key_prefix):
     epoch = datetime.utcfromtimestamp(0)
 
-    async for (prefix_page, key_page) in _list_keys(logger, context, key_prefix, S3_DIR_SUFFIX):
+    async for (prefix_page, key_page) in _list_keys(logger, context, key_prefix, S3_DIR_SEPARATOR):
         for list_prefix in prefix_page:
             yield S3ListPath(list_prefix.prefix, stat=Stat(
                 # Not completely sure what size should be for a directory
@@ -503,7 +504,7 @@ async def _list_immediate_child_paths(logger, context, key_prefix):
             ))
 
         for list_key in key_page:
-            if list_key.key[-1] == S3_DIR_SUFFIX:
+            if list_key.key[-len(S3_DIR_SUFFIX):] == S3_DIR_SUFFIX:
                 continue
             yield S3ListPath(list_key.key, stat=Stat(
                 st_size=list_key.size,
