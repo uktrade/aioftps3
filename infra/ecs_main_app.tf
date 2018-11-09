@@ -134,8 +134,7 @@ data "template_file" "app_container_definitions" {
     aws_s3_bucket_name    = "${aws_s3_bucket.app.id}"
     aws_s3_bucket_region  = "${aws_s3_bucket.app.region}"
 
-    ftp_users__1__login    = "${var.ftp_user_login}"
-    ftp_users__1__password = "${var.ftp_user_password}"
+    ftp_users              = "${join(",", data.template_file.ftp_users_json.*.rendered)}"
     ftp_command_port       = "${var.ftp_command_port}"
     ftp_data_ports_first   = "${var.ftp_data_ports_first}"
     ftp_data_ports_count   = "${var.ftp_data_ports_count}"
@@ -146,6 +145,17 @@ data "template_file" "app_container_definitions" {
     ftp_data_cidr_to_domains__2__domain = "${aws_lb.app_private.dns_name}"
 
     healthcheck_port = "${var.healthcheck_port}"
+  }
+}
+
+data "template_file" "ftp_users_json" {
+  count    = "${length(var.ftp_users)}"
+  template = "${file("${path.module}/ecs_main_app_ftp_user.json_template")}"
+
+  vars {
+    index    = "${count.index + 1}"
+    login    = "${lookup(var.ftp_users[count.index], "login")}"
+    password = "${lookup(var.ftp_users[count.index], "password")}"
   }
 }
 

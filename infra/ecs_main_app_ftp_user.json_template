@@ -1,0 +1,8 @@
+{
+  "name": "FTP_USERS__${index}__LOGIN",
+  "value": "${login}"
+},
+{
+  "name": "FTP_USERS__${index}__PASSWORD",
+  "value": "${password}"
+}
