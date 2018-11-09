@@ -20,13 +20,14 @@ RUN \
 
 COPY entrypoint.sh /entrypoint.sh
 COPY server.py /server.py
+COPY server_main.py /server_main.py
 COPY server_logger.py /server_logger.py
 COPY server_s3.py /server_s3.py
 COPY server_socket.py /server_socket.py
 COPY server_utils.py /server_utils.py
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["python3", "server.py"]
+CMD ["python3", "server_main.py"]
 
 RUN adduser -S ftps
 USER ftps
