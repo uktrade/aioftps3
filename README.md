@@ -1,4 +1,4 @@
-# aioftps3
+# aioftps3 [![CircleCI](https://circleci.com/gh/uktrade/aioftps3.svg?style=svg)](https://circleci.com/gh/uktrade/aioftps3)
 
 FTP in front of AWS S3, using [asyncio](https://docs.python.org/3/library/asyncio.html), and [aiohttp](https://github.com/aio-libs/aiohttp).
 
@@ -65,4 +65,12 @@ docker run --rm -p 8021-8042:8021-8042 \
 docker build -t ftps-s3 . && \
 docker tag ftps-s3:latest quay.io/uktrade/ftps-s3:latest && \
 docker push quay.io/uktrade/ftps-s3:latest
+```
+
+## Building and pushing Minio, used for testing, to Quay
+
+```bash
+docker build -t ftps-s3-minio . -f Dockerfile-minio && \
+docker tag ftps-s3-minio:latest quay.io/uktrade/ftps-s3-minio:latest && \
+docker push quay.io/uktrade/ftps-s3-minio:latest
 ```
