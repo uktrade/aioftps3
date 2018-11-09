@@ -134,11 +134,11 @@ data "template_file" "app_container_definitions" {
     aws_s3_bucket_name    = "${aws_s3_bucket.app.id}"
     aws_s3_bucket_region  = "${aws_s3_bucket.app.region}"
 
-    ftp_user_login       = "${var.ftp_user_login}"
-    ftp_user_password    = "${var.ftp_user_password}"
-    ftp_command_port     = "${var.ftp_command_port}"
-    ftp_data_ports_first = "${var.ftp_data_ports_first}"
-    ftp_data_ports_count = "${var.ftp_data_ports_count}"
+    ftp_users__1__login    = "${var.ftp_user_login}"
+    ftp_users__1__password = "${var.ftp_user_password}"
+    ftp_command_port       = "${var.ftp_command_port}"
+    ftp_data_ports_first   = "${var.ftp_data_ports_first}"
+    ftp_data_ports_count   = "${var.ftp_data_ports_count}"
 
     ftp_data_cidr_to_domains__1__cidr = "${aws_subnet.public.cidr_block}"
     ftp_data_cidr_to_domains__1__domain = "${aws_lb.app_public.dns_name}"
