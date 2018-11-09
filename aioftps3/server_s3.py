@@ -405,8 +405,8 @@ async def _put(logger, context, path):
             if not await _is_dir(logger, context, path.parent):
                 raise Exception('{} does not exist'.format(path.parent))
 
-            if not _is_dir(logger, context, path.parent):
-                raise Exception('{} is a directory'.format(path.parent))
+            if await _is_dir(logger, context, path):
+                raise Exception('{} is a directory'.format(path))
 
             # Overwrites of files are allowed, so there is no need to check if
             # the file aleady exists
