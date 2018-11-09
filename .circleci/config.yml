@@ -1,0 +1,33 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: python:3.7.1
+      - image: quay.io/uktrade/ftps-s3-minio:latest
+        environment:
+          MINIO_ACCESS_KEY: AKIAIOSFODNN7EXAMPLE
+          MINIO_SECRET_KEY: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+          MINIO_REGION: us-east-1
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - run:
+          name: Install runtime dependencies
+          command: |
+            pip install -r requirements.txt
+      - run:
+          name: Run tests
+          command: |
+            ./certificates-create.sh
+            ./tests.sh
+      - run:
+          # These are installed separately to ensure we don't
+          # accidentally pass the tests with dependencies not
+          # requires by setup.py
+          name: Install linting dependencies
+          command: |
+            pip install pre-commit==1.8.2 pylint==2.1.1
+            pre-commit install --install-hooks
+      - run:
+          name: Run linting
+          command: pre-commit run --all-files
