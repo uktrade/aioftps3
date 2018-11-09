@@ -26,7 +26,8 @@ def async_test(func):
 
 
 Readable = namedtuple('Readable', ['read'])
-LIST_REGEX = '^(p|d)rw-rw-rw- 1 none none (\\d+) ([a-zA-Z]{3}) (\\d+) (\\d\\d:\\d\\d) (.*)'
+LIST_REGEX = '^(p|d)rw(?:-|x)rw(?:-|x)rw(?:-|x) 1 none none +(\\d+) ([a-zA-Z]{3}) +' \
+             '(\\d+) (\\d\\d:\\d\\d) (.*)'
 
 
 class TestAioFtpS3(unittest.TestCase):
@@ -168,6 +169,42 @@ class TestAioFtpS3(unittest.TestCase):
         await loop.run_in_executor(None, get_data)
         self.assertEqual(data, b'Some contents')
 
+    @async_test
+    async def test_create_and_delete_directories(self):
+        loop = await self.setup_manual()
+
+        def create_directory():
+            with FTP_TLS() as ftp:
+                ftp.connect(host='localhost', port=8021)
+                ftp.login(user='my-user', passwd='my-password')
+                ftp.mkd('my-dir')
+
+        await loop.run_in_executor(None, create_directory)
+
+        def get_dir_lines():
+            with FTP_TLS() as ftp:
+                ftp.connect(host='localhost', port=8021)
+                ftp.login(user='my-user', passwd='my-password')
+                ftp.prot_p()
+                return ftp_list(ftp)
+
+        lines = await loop.run_in_executor(None, get_dir_lines)
+        self.assertEqual(len(lines), 1)
+        match = re.match(LIST_REGEX, lines[0])
+        self.assertEqual(match[1], 'd')
+        self.assertEqual(match[6], 'my-dir')
+
+        def delete_directory():
+            with FTP_TLS() as ftp:
+                ftp.connect(host='localhost', port=8021)
+                ftp.login(user='my-user', passwd='my-password')
+                ftp.prot_p()
+                ftp.rmd('my-dir')
+
+        await loop.run_in_executor(None, delete_directory)
+        lines_after_del = await loop.run_in_executor(None, get_dir_lines)
+        self.assertEqual(len(lines_after_del), 0)
+
 
 def ftp_list(ftp):
     lines = []
@@ -188,6 +225,7 @@ def env():
         'AWS_S3_BUCKET_REGION': 'us-east-1',
         'AWS_S3_BUCKET_HOST': 'localhost:9000',
         'AWS_S3_BUCKET_NAME': 'my-bucket',
+        'AWS_S3_BUCKET_DIR_SUFFIX': '/.s3keep',
         'FTP_USERS__1__LOGIN': 'my-user',
         'FTP_USERS__1__PASSWORD': 'my-password',
         'FTP_COMMAND_PORT': '8021',

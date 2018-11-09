@@ -34,11 +34,8 @@ MULTIPART_UPLOAD_MAX_CONCURRENT_UPLOADS_PER_FILE = 3
 REG_MODE = 0o10666  # stat.S_IFREG | 0o666
 DIR_MODE = 0o40777  # stat.S_IFDIR | 0o777
 
-# The S3 console uses '/' as both the folder separator for
-# navigation, and as the suffix for objects created when
-# you create a folder, so we do exacty the same here
 S3_DIR_SEPARATOR = '/'
-S3_DIR_SUFFIX = '/'
+
 
 Stat = namedtuple(
     'Stat',
@@ -50,7 +47,7 @@ S3Credentials = namedtuple('AwsCredentials', [
 ])
 
 S3Bucket = namedtuple('AwsS3Bucket', [
-    'region', 'host', 'verify_certs', 'name',
+    'region', 'host', 'verify_certs', 'name', 'dir_suffix',
 ])
 
 S3Context = namedtuple('Context', [
@@ -124,12 +121,13 @@ def get_s3_ecs_role_credentials(url):
     return get
 
 
-def get_s3_bucket(region, host, verify_certs, name):
+def get_s3_bucket(region, host, verify_certs, name, dir_suffix):
     return S3Bucket(
         region=region,
         host=host,
         verify_certs=verify_certs,
         name=name,
+        dir_suffix=dir_suffix,
     )
 
 
@@ -211,10 +209,10 @@ def _key(path):
     return key
 
 
-def _dir_key(path):
+def _dir_key(context, path):
     key = \
         '' if path == PurePosixPath('/') else \
-        path.relative_to(PurePosixPath('/')).as_posix() + S3_DIR_SUFFIX
+        path.relative_to(PurePosixPath('/')).as_posix() + context.bucket.dir_suffix
 
     return key
 
@@ -246,19 +244,19 @@ async def _file_exists(logger, context, path):
 
 
 async def _dir_exists(logger, context, path):
-    response, _ = await _s3_request_full(logger, context, 'HEAD', '/' + _dir_key(path), {}, {},
-                                         b'', _hash(b''))
+    response, _ = await _s3_request_full(logger, context, 'HEAD', '/' + _dir_key(context, path),
+                                         {}, {}, b'', _hash(b''))
     return response.status == 200
 
 
 async def _mkdir(logger, context, path):
-    response, _ = await _s3_request_full(logger, context, 'PUT', '/' + _dir_key(path), {}, {},
-                                         b'', _hash(b''))
+    response, _ = await _s3_request_full(logger, context, 'PUT', '/' + _dir_key(context, path),
+                                         {}, {}, b'', _hash(b''))
     response.raise_for_status()
 
 
 async def _rmdir(logger, context, path):
-    keys = [key async for key in _list_descendant_keys(logger, context, _dir_key(path))]
+    keys = [key async for key in _list_descendant_keys(logger, context, _dir_key(context, path))]
 
     def delete_sort_key(key):
         # Delete innermost files and folders first
@@ -293,7 +291,7 @@ async def _rename(logger, context, rename_from, rename_to):
     from_keys = \
         [
             key.key
-            async for key in _list_descendant_keys(logger, context, _dir_key(rename_from))
+            async for key in _list_descendant_keys(logger, context, _dir_key(context, rename_from))
         ] if source_is_dir else \
         [rename_from_key]
 
@@ -323,7 +321,7 @@ async def _rename(logger, context, rename_from, rename_to):
 
 
 async def _list(logger, context, path):
-    async for child_path in _list_immediate_child_paths(logger, context, _dir_key(path)):
+    async for child_path in _list_immediate_child_paths(logger, context, _dir_key(context, path)):
         yield child_path
 
 
@@ -488,6 +486,7 @@ async def _get(logger, context, path, chunk_size):
 
 async def _list_immediate_child_paths(logger, context, key_prefix):
     epoch = datetime.utcfromtimestamp(0)
+    dir_suffix = context.bucket.dir_suffix
 
     async for (prefix_page, key_page) in _list_keys(logger, context, key_prefix, S3_DIR_SEPARATOR):
         for list_prefix in prefix_page:
@@ -504,7 +503,7 @@ async def _list_immediate_child_paths(logger, context, key_prefix):
             ))
 
         for list_key in key_page:
-            if list_key.key[-len(S3_DIR_SUFFIX):] == S3_DIR_SUFFIX:
+            if list_key.key[-len(dir_suffix):] == dir_suffix:
                 continue
             yield S3ListPath(list_key.key, stat=Stat(
                 st_size=list_key.size,

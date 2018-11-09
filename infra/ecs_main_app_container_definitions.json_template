@@ -30,6 +30,10 @@
       "name": "AWS_S3_BUCKET_REGION",
       "value": "${aws_s3_bucket_region}"
     },
+    {
+      "name": "AWS_S3_BUCKET_DIR_SUFFIX",
+      "value": "/"
+    },
     ${ftp_users},
     {
       "name": "FTP_COMMAND_PORT",
