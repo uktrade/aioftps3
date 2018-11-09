@@ -34,8 +34,9 @@ variable "app_subnet_hosts_count" {}
 variable "app_container_image" {}
 variable "app_bucket" {}
 
-variable "ftp_user_login" {}
-variable "ftp_user_password" {}
+variable "ftp_users" {
+  type = "list"
+}
 variable "ftp_command_port" {}
 variable "ftp_data_ports_first" {}
 variable "ftp_data_ports_count" {}
