@@ -208,27 +208,27 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
     async def command_mkd(arg):
         s3_path = to_absolute_path(arg)
         await s3_mkdir(logger, s3_context, s3_path)
-        await command_responses.put(b'230 Requested file action okay, completed.')
+        await command_responses.put(b'250 Requested file action okay, completed.')
 
     async def command_rmd(arg):
         s3_path = to_absolute_path(arg)
         await s3_rmdir(logger, s3_context, s3_path)
-        await command_responses.put(b'230 Requested file action okay, completed.')
+        await command_responses.put(b'250 Requested file action okay, completed.')
 
     async def command_cdup(_):
         nonlocal cwd
         cwd = cwd.parent
-        await command_responses.put(b'230 Requested file action okay, completed.')
+        await command_responses.put(b'250 Requested file action okay, completed.')
 
     async def command_cwd(arg):
         nonlocal cwd
         cwd = to_absolute_path(arg)
-        await command_responses.put(b'230 Requested file action okay, completed.')
+        await command_responses.put(b'250 Requested file action okay, completed.')
 
     async def command_dele(arg):
         s3_path = to_absolute_path(arg)
         await s3_delete(logger, s3_context, s3_path)
-        await command_responses.put(b'230 Requested file action okay, completed.')
+        await command_responses.put(b'250 Requested file action okay, completed.')
 
     async def command_list(_):
         s3_path = cwd
@@ -272,7 +272,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
     async def command_rnfr(arg):
         nonlocal rename_from
         rename_from = to_absolute_path(arg)
-        await command_responses.put(b'230 Requested file action okay, completed.')
+        await command_responses.put(b'250 Requested file action okay, completed.')
 
     async def command_rnto(arg):
         nonlocal rename_from
@@ -283,7 +283,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
 
         await s3_rename(logger, s3_context, _rename_from, _rename_to)
 
-        await command_responses.put(b'230 Requested file action okay, completed.')
+        await command_responses.put(b'250 Requested file action okay, completed.')
 
     async def command_pasv(_):
         nonlocal data_port

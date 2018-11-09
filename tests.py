@@ -1,9 +1,13 @@
 import asyncio
+from collections import (
+    namedtuple,
+)
 from ftplib import (
     FTP_TLS,
     error_perm,
 )
 import logging
+import re
 import ssl
 import sys
 import unittest
@@ -21,6 +25,10 @@ def async_test(func):
     return wrapper
 
 
+Readable = namedtuple('Readable', ['read'])
+LIST_REGEX = '^(p|d)rw-rw-rw- 1 none none (\\d+) ([a-zA-Z]{3}) (\\d+) (\\d\\d:\\d\\d) (.*)'
+
+
 class TestAioFtpS3(unittest.TestCase):
 
     def add_async_cleanup(self, loop, coroutine):
@@ -33,12 +41,27 @@ class TestAioFtpS3(unittest.TestCase):
         logger.setLevel(logging.DEBUG)
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(logging.DEBUG)
+        logger.handlers = []
         logger.addHandler(handler)
 
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
         ssl_context.load_cert_chain('aioftps3-certs/ssl.crt', keyfile='aioftps3-certs/ssl.key')
 
         server = loop.create_task(async_main(loop, env(), logger, ssl_context))
+
+        def delete_everything():
+            with FTP_TLS() as ftp:
+                ftp.encoding = 'utf-8'
+                ftp.connect(host='localhost', port=8021)
+                ftp.login(user='my-user', passwd='my-password')
+                ftp.prot_p()
+                lines = ftp_list(ftp)
+                for line in lines:
+                    match = re.match(LIST_REGEX, line)
+                    func_name = 'delete' if match[1] == 'p' else 'rmd'
+                    getattr(ftp, func_name)(match[6])
+
+        await loop.run_in_executor(None, delete_everything)
 
         async def cancel_server():
             server.cancel()
@@ -86,6 +109,60 @@ class TestAioFtpS3(unittest.TestCase):
 
         with self.assertRaises(error_perm):
             await loop.run_in_executor(None, connect)
+
+    @async_test
+    async def test_empty_list_root_directory(self):
+        loop = await self.setup_manual()
+
+        def get_dir_lines():
+            with FTP_TLS() as ftp:
+                ftp.connect(host='localhost', port=8021)
+                ftp.login(user='my-user', passwd='my-password')
+                ftp.prot_p()
+                return ftp_list(ftp)
+
+        lines = await loop.run_in_executor(None, get_dir_lines)
+        self.assertEqual(lines, [])
+
+    @async_test
+    async def test_stor_then_list(self):
+        loop = await self.setup_manual()
+
+        def file():
+            contents = (block for block in [b'Some contents'])
+
+            def read(_):
+                try:
+                    return next(contents)
+                except StopIteration:
+                    return b''
+
+            return Readable(read=read)
+
+        def get_dir_lines():
+            with FTP_TLS() as ftp:
+                ftp.connect(host='localhost', port=8021)
+                ftp.login(user='my-user', passwd='my-password')
+                ftp.prot_p()
+                ftp.storbinary('STOR myfile.bin', file())
+                return ftp_list(ftp)
+
+        lines = await loop.run_in_executor(None, get_dir_lines)
+        self.assertEqual(len(lines), 1)
+        match = re.match(LIST_REGEX, lines[0])
+        self.assertEqual(match[1], 'p')
+        self.assertEqual(match[6], 'myfile.bin')
+
+
+def ftp_list(ftp):
+    lines = []
+
+    def on_line(line):
+        lines.append(line)
+
+    ftp.dir(on_line)
+
+    return lines
 
 
 def env():
