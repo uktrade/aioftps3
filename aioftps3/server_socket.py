@@ -96,7 +96,12 @@ async def server(logger, loop, ssl_context, port, on_listening, client_handler, 
         # means the port can be listented to again immediately, and and the
         # file descriptor is not released too soon, which would cause later
         # connections using that file descriptor to not work properly
-        sock.shutdown(SHUT_RDWR)
+        try:
+            sock.shutdown(SHUT_RDWR)
+        except BaseException:
+            # However, if shutting down fails, we should close explicitly to
+            # free up resources now
+            sock.close()
 
 
 async def sock_accept(loop, sock, on_listening):
