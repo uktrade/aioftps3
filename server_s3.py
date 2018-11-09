@@ -263,7 +263,7 @@ async def _mkdir(logger, context, path):
 
 
 async def _rmdir(logger, context, path):
-    keys = await _list_descendant_keys(logger, context, _dir_key(path))
+    keys = [key async for key in _list_descendant_keys(logger, context, _dir_key(path))]
 
     def delete_sort_key(key):
         # Delete innermost files and folders first
@@ -298,7 +298,7 @@ async def _rename(logger, context, rename_from, rename_to):
     from_keys = \
         [
             key.key
-            for key in await _list_descendant_keys(logger, context, _dir_key(rename_from))
+            async for key in _list_descendant_keys(logger, context, _dir_key(rename_from))
         ] if source_is_dir else \
         [rename_from_key]
 
@@ -328,7 +328,7 @@ async def _rename(logger, context, rename_from, rename_to):
 
 
 async def _list(logger, context, path):
-    for child_path in await _list_immediate_child_paths(logger, context, _dir_key(path)):
+    async for child_path in _list_immediate_child_paths(logger, context, _dir_key(path)):
         yield child_path
 
 
@@ -489,37 +489,37 @@ async def _get(logger, context, path, chunk_size):
 
 async def _list_immediate_child_paths(logger, context, key_prefix):
     epoch = datetime.utcfromtimestamp(0)
-    list_prefixes, list_keys = await _list_keys(logger, context, key_prefix, S3_DIR_SUFFIX)
 
-    return [
-        S3ListPath(list_key.key, stat=Stat(
-            st_size=list_key.size,
-            st_mtime=list_key.last_modified,
-            st_ctime=list_key.last_modified,
-            st_nlink=1,
-            st_mode=REG_MODE,
-        ))
-        for list_key in list_keys
-        if list_key.key[-1] != S3_DIR_SUFFIX
-    ] + [
-        S3ListPath(list_prefix.prefix, stat=Stat(
-            # Not completely sure what size should be for a directory
-            st_size=0,
-            # Can't quite work out an efficient way of working out
-            # any sort of meaningful modification/creation time for a
-            # directory
-            st_mtime=epoch,
-            st_ctime=epoch,
-            st_nlink=1,
-            st_mode=DIR_MODE,
-        ))
-        for list_prefix in list_prefixes
-    ]
+    async for (prefix_page, key_page) in _list_keys(logger, context, key_prefix, S3_DIR_SUFFIX):
+        for list_prefix in prefix_page:
+            yield S3ListPath(list_prefix.prefix, stat=Stat(
+                # Not completely sure what size should be for a directory
+                st_size=0,
+                # Can't quite work out an efficient way of working out
+                # any sort of meaningful modification/creation time for a
+                # directory
+                st_mtime=epoch,
+                st_ctime=epoch,
+                st_nlink=1,
+                st_mode=DIR_MODE,
+            ))
+
+        for list_key in key_page:
+            if list_key.key[-1] == S3_DIR_SUFFIX:
+                continue
+            yield S3ListPath(list_key.key, stat=Stat(
+                st_size=list_key.size,
+                st_mtime=list_key.last_modified,
+                st_ctime=list_key.last_modified,
+                st_nlink=1,
+                st_mode=REG_MODE,
+            ))
 
 
 async def _list_descendant_keys(logger, context, key_prefix):
-    _, list_keys = await _list_keys(logger, context, key_prefix, '')
-    return list_keys
+    async for (_, key_page) in _list_keys(logger, context, key_prefix, ''):
+        for list_key in key_page:
+            yield list_key
 
 
 async def _list_keys(logger, context, key_prefix, delimeter):
@@ -578,15 +578,14 @@ async def _list_keys(logger, context, key_prefix, delimeter):
             if element.tag == f'{namespace}NextContinuationToken':
                 next_token = element.text
 
-        return (next_token, keys, prefixes)
+        return (next_token, prefixes, keys)
 
-    token, keys, prefixes = await _list_first_page()
+    token, prefixes_page, keys_page = await _list_first_page()
+    yield (prefixes_page, keys_page)
+
     while token:
-        token, keys_page, prefixes_page = await _list_later_page(token)
-        keys.extend(keys_page)
-        prefixes.extend(prefixes_page)
-
-    return prefixes, keys
+        token, prefixes_page, keys_page = await _list_later_page(token)
+        yield (prefixes_page, keys_page)
 
 
 def _hash(payload):
