@@ -203,7 +203,8 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
         await command_responses.put(b'230 User logged in, proceed.')
 
     async def command_pwd(_):
-        await command_responses.put(b'257 "%s"' % cwd.as_posix().encode('utf-8'))
+        await command_responses.put(
+            b'257 "%s"' % cwd.as_posix().encode('utf-8').replace(b'"', b'""'))
 
     async def command_mkd(arg):
         s3_path = to_absolute_path(arg)
@@ -272,7 +273,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
     async def command_rnfr(arg):
         nonlocal rename_from
         rename_from = to_absolute_path(arg)
-        await command_responses.put(b'250 Requested file action okay, completed.')
+        await command_responses.put(b'350 Requested file action pending further information.')
 
     async def command_rnto(arg):
         nonlocal rename_from

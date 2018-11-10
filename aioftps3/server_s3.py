@@ -220,6 +220,14 @@ def _dir_key(context, path):
     return key
 
 
+def _dir_prefix(path):
+    key = \
+        '' if path == PurePosixPath('/') else \
+        path.relative_to(PurePosixPath('/')).as_posix() + S3_DIR_SEPARATOR
+
+    return key
+
+
 async def _exists(logger, context, path):
     return \
         await _is_file(logger, context, path) or \
@@ -259,11 +267,13 @@ async def _mkdir(logger, context, path):
 
 
 async def _rmdir(logger, context, path):
-    keys = [key async for key in _list_descendant_keys(logger, context, _dir_key(context, path))]
+    keys = [key async for key in _list_descendant_keys(logger, context, _dir_prefix(path))]
 
     def delete_sort_key(key):
         # Delete innermost files and folders first
-        return (key.key.count('/'), len(key.key), key.key)
+        dir_suffix = context.bucket.dir_suffix
+        is_dir_file = 1 if key.key[-len(dir_suffix):] == dir_suffix else 0
+        return (key.key.count('/'), is_dir_file, key.key)
 
     for key in sorted(keys, key=delete_sort_key, reverse=True):
         response, _ = await _s3_request_full(logger, context, 'DELETE', '/' + key.key, {}, {},
@@ -294,7 +304,7 @@ async def _rename(logger, context, rename_from, rename_to):
     from_keys = \
         [
             key.key
-            async for key in _list_descendant_keys(logger, context, _dir_key(context, rename_from))
+            async for key in _list_descendant_keys(logger, context, _dir_prefix(rename_from))
         ] if source_is_dir else \
         [rename_from_key]
 
@@ -305,7 +315,9 @@ async def _rename(logger, context, rename_from, rename_to):
     # ... we copy everything first...
 
     def sort_key(keys):
-        return (keys[0].count('/'), len(keys[0]), keys[0])
+        dir_suffix = context.bucket.dir_suffix
+        is_dir_file = 1 if keys[0][-len(dir_suffix):] == dir_suffix else 0
+        return (keys[0].count('/'), is_dir_file, keys[0])
 
     for from_key, to_key in sorted(renames, key=sort_key, reverse=True):
         headers = {
@@ -317,14 +329,14 @@ async def _rename(logger, context, rename_from, rename_to):
 
     # ... and then delete the originals
 
-    for from_key, _ in sorted(renames, key=sort_key, reverse=True):
+    for from_key, _ in sorted(renames, key=sort_key):
         response, _ = await _s3_request_full(logger, context, 'DELETE', '/' + from_key, {}, {},
                                              b'', _hash(b''))
         response.raise_for_status()
 
 
 async def _list(logger, context, path):
-    async for child_path in _list_immediate_child_paths(logger, context, _dir_key(context, path)):
+    async for child_path in _list_immediate_child_paths(logger, context, _dir_prefix(path)):
         yield child_path
 
 
