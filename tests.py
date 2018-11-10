@@ -193,7 +193,7 @@ class TestAioFtpS3(unittest.TestCase):
             return file(contents)
 
         def stor(ftp):
-            ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', random_file())
+            ftp.storbinary('STOR my £" 👨‍👩‍👧‍👦 🍰.bin', random_file())
 
         await ftp_run(stor, loop=loop, user='my-user', passwd='my-password')
 
@@ -222,7 +222,7 @@ class TestAioFtpS3(unittest.TestCase):
             num_checked += num_to_check
 
         def get_data(ftp):
-            ftp.retrbinary('RETR my £ 👨‍👩‍👧‍👦 🍰.bin', on_incoming)
+            ftp.retrbinary('RETR my £" 👨‍👩‍👧‍👦 🍰.bin', on_incoming)
 
         await ftp_run(get_data, loop=loop, user='my-user', passwd='my-password')
         self.assertEqual(num_checked, 105906176)
