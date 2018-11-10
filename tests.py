@@ -150,7 +150,7 @@ class TestAioFtpS3(unittest.TestCase):
         loop = await self.setup_manual()
 
         def create_directory(ftp):
-            ftp.mkd('my-dir')
+            ftp.mkd('my-"  👨‍👩‍👧‍👦 🍰dir')
 
         await ftp_run(create_directory, loop=loop, user='my-user', passwd='my-password')
 
@@ -158,10 +158,10 @@ class TestAioFtpS3(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         match = re.match(LIST_REGEX, lines[0])
         self.assertEqual(match[1], 'd')
-        self.assertEqual(match[6], 'my-dir')
+        self.assertEqual(match[6], 'my-"  👨‍👩‍👧‍👦 🍰dir')
 
         def delete_directory(ftp):
-            ftp.rmd('my-dir')
+            ftp.rmd('my-"  👨‍👩‍👧‍👦 🍰dir')
 
         await ftp_run(delete_directory, loop=loop, user='my-user', passwd='my-password')
         lines_after_del = await ftp_run(ftp_list, loop=loop, user='my-user', passwd='my-password')
