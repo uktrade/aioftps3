@@ -52,19 +52,14 @@ class TestAioFtpS3(unittest.TestCase):
 
         server = loop.create_task(async_main(loop, env(), logger, ssl_context))
 
-        def delete_everything():
-            with FTP_TLS() as ftp:
-                ftp.encoding = 'utf-8'
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.prot_p()
-                lines = ftp_list(ftp)
-                for line in lines:
-                    match = re.match(LIST_REGEX, line)
-                    func_name = 'delete' if match[1] == 'p' else 'rmd'
-                    getattr(ftp, func_name)(match[6])
+        def delete_everything(ftp):
+            lines = ftp_list(ftp)
+            for line in lines:
+                match = re.match(LIST_REGEX, line)
+                func_name = 'delete' if match[1] == 'p' else 'rmd'
+                getattr(ftp, func_name)(match[6])
 
-        await loop.run_in_executor(None, delete_everything)
+        await ftp_run(delete_everything, loop=loop, user='my-user', passwd='my-password')
 
         async def cancel_server():
             server.cancel()
@@ -78,53 +73,37 @@ class TestAioFtpS3(unittest.TestCase):
     async def test_if_correct_creds_login_succeeds(self):
         loop = await self.setup_manual()
 
-        def connect():
-            with FTP_TLS() as ftp:
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.quit()
+        def nothing(_):
+            pass
 
-        await loop.run_in_executor(None, connect)
+        await ftp_run(nothing, loop=loop, user='my-user', passwd='my-password')
         # Will raise if fails
 
     @async_test
     async def test_if_bad_pass_login_fails(self):
         loop = await self.setup_manual()
 
-        def connect():
-            with FTP_TLS() as ftp:
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='not-my-password')
-                ftp.quit()
+        def nothing(_):
+            pass
 
         with self.assertRaises(error_perm):
-            await loop.run_in_executor(None, connect)
+            await ftp_run(nothing, loop=loop, user='my-user', passwd='not-my-password')
 
     @async_test
     async def test_if_bad_user_login_fails(self):
         loop = await self.setup_manual()
 
-        def connect():
-            with FTP_TLS() as ftp:
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='not-my-user', passwd='my-password')
-                ftp.quit()
+        def nothing(_):
+            pass
 
         with self.assertRaises(error_perm):
-            await loop.run_in_executor(None, connect)
+            await ftp_run(nothing, loop=loop, user='not-my-user', passwd='my-password')
 
     @async_test
     async def test_empty_list_root_directory(self):
         loop = await self.setup_manual()
 
-        def get_dir_lines():
-            with FTP_TLS() as ftp:
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.prot_p()
-                return ftp_list(ftp)
-
-        lines = await loop.run_in_executor(None, get_dir_lines)
+        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd='my-password')
         self.assertEqual(lines, [])
 
     @async_test
@@ -142,16 +121,11 @@ class TestAioFtpS3(unittest.TestCase):
 
             return Readable(read=read)
 
-        def get_dir_lines():
-            with FTP_TLS() as ftp:
-                ftp.encoding = 'utf-8'
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.prot_p()
-                ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', file())
-                return ftp_list(ftp)
+        def stor_then_list(ftp):
+            ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', file())
+            return ftp_list(ftp)
 
-        lines = await loop.run_in_executor(None, get_dir_lines)
+        lines = await ftp_run(stor_then_list, loop=loop, user='my-user', passwd='my-password')
         self.assertEqual(len(lines), 1)
         match = re.match(LIST_REGEX, lines[0])
         self.assertEqual(match[1], 'p')
@@ -162,15 +136,10 @@ class TestAioFtpS3(unittest.TestCase):
         def on_incoming(incoming_data):
             data.extend(bytearray(incoming_data))
 
-        def get_data():
-            with FTP_TLS() as ftp:
-                ftp.encoding = 'utf-8'
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.prot_p()
-                ftp.retrbinary('RETR my £ 👨‍👩‍👧‍👦 🍰.bin', on_incoming)
+        def get_data(ftp):
+            ftp.retrbinary('RETR my £ 👨‍👩‍👧‍👦 🍰.bin', on_incoming)
 
-        await loop.run_in_executor(None, get_data)
+        await ftp_run(get_data, loop=loop, user='my-user', passwd='my-password')
         self.assertEqual(data, b'Some contents')
 
     @async_test
@@ -188,67 +157,46 @@ class TestAioFtpS3(unittest.TestCase):
 
             return Readable(read=read)
 
-        def stor():
-            with FTP_TLS() as ftp:
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.prot_p()
-                ftp.storbinary('STOR subdirectory/file.bin', file())
+        def stor(ftp):
+            ftp.storbinary('STOR subdirectory/file.bin', file())
 
         with self.assertRaises(error_temp):
-            await loop.run_in_executor(None, stor)
+            await ftp_run(stor, loop=loop, user='my-user', passwd='my-password')
 
     @async_test
     async def test_create_and_delete_directories(self):
         loop = await self.setup_manual()
 
-        def create_directory():
-            with FTP_TLS() as ftp:
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.mkd('my-dir')
+        def create_directory(ftp):
+            ftp.mkd('my-dir')
 
-        await loop.run_in_executor(None, create_directory)
+        await ftp_run(create_directory, loop=loop, user='my-user', passwd='my-password')
 
-        def get_dir_lines():
-            with FTP_TLS() as ftp:
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.prot_p()
-                return ftp_list(ftp)
-
-        lines = await loop.run_in_executor(None, get_dir_lines)
+        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd='my-password')
         self.assertEqual(len(lines), 1)
         match = re.match(LIST_REGEX, lines[0])
         self.assertEqual(match[1], 'd')
         self.assertEqual(match[6], 'my-dir')
 
-        def delete_directory():
-            with FTP_TLS() as ftp:
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.prot_p()
-                ftp.rmd('my-dir')
+        def delete_directory(ftp):
+            ftp.rmd('my-dir')
 
-        await loop.run_in_executor(None, delete_directory)
-        lines_after_del = await loop.run_in_executor(None, get_dir_lines)
+        await ftp_run(delete_directory, loop=loop, user='my-user', passwd='my-password')
+        lines_after_del = await ftp_run(ftp_list, loop=loop, user='my-user', passwd='my-password')
         self.assertEqual(len(lines_after_del), 0)
 
     @async_test
     async def test_if_parent_dir_not_exist_then_no_mkdir(self):
         loop = await self.setup_manual()
 
-        def mkd(directory):
-            with FTP_TLS() as ftp:
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.prot_p()
-                ftp.mkd(directory)
+        def mkd(ftp, directory):
+            ftp.mkd(directory)
 
         with self.assertRaises(BaseException):
-            await loop.run_in_executor(None, mkd, 'subdirectory/new-dir')
+            await ftp_run(mkd, 'subdirectory/new-dir',
+                          loop=loop, user='my-user', passwd='my-password')
 
-        await loop.run_in_executor(None, mkd, 'subdirectory')
+        await ftp_run(mkd, 'subdirectory', loop=loop, user='my-user', passwd='my-password')
 
     @async_test
     async def test_100mb_file(self):
@@ -269,15 +217,10 @@ class TestAioFtpS3(unittest.TestCase):
 
             return Readable(read=read)
 
-        def stor():
-            with FTP_TLS() as ftp:
-                ftp.encoding = 'utf-8'
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.prot_p()
-                ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', file())
+        def stor(ftp):
+            ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', file())
 
-        await loop.run_in_executor(None, stor)
+        await ftp_run(stor, loop=loop, user='my-user', passwd='my-password')
 
         correct_file = file()
         correct = b''
@@ -303,15 +246,10 @@ class TestAioFtpS3(unittest.TestCase):
             correct = correct[num_to_check:]
             num_checked += num_to_check
 
-        def get_data():
-            with FTP_TLS() as ftp:
-                ftp.encoding = 'utf-8'
-                ftp.connect(host='localhost', port=8021)
-                ftp.login(user='my-user', passwd='my-password')
-                ftp.prot_p()
-                ftp.retrbinary('RETR my £ 👨‍👩‍👧‍👦 🍰.bin', on_incoming)
+        def get_data(ftp):
+            ftp.retrbinary('RETR my £ 👨‍👩‍👧‍👦 🍰.bin', on_incoming)
 
-        await loop.run_in_executor(None, get_data)
+        await ftp_run(get_data, loop=loop, user='my-user', passwd='my-password')
         self.assertEqual(num_checked, 105906176)
         self.assertTrue(all_equal)
 
@@ -325,6 +263,18 @@ def ftp_list(ftp):
     ftp.dir(on_line)
 
     return lines
+
+
+async def ftp_run(func, *args, loop, user, passwd):
+    def task():
+        with FTP_TLS() as ftp:
+            ftp.encoding = 'utf-8'
+            ftp.connect(host='localhost', port=8021)
+            ftp.login(user=user, passwd=passwd)
+            ftp.prot_p()
+            return func(ftp, *args)
+
+    return await loop.run_in_executor(None, task)
 
 
 def env():
