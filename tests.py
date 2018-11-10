@@ -8,6 +8,7 @@ from ftplib import (
     error_temp,
 )
 import logging
+import random
 import re
 import ssl
 import sys
@@ -248,6 +249,71 @@ class TestAioFtpS3(unittest.TestCase):
             await loop.run_in_executor(None, mkd, 'subdirectory/new-dir')
 
         await loop.run_in_executor(None, mkd, 'subdirectory')
+
+    @async_test
+    async def test_100mb_file(self):
+        loop = await self.setup_manual()
+
+        def random_bytes(num_bytes):
+            return bytes(random.getrandbits(8) for _ in range(num_bytes))
+
+        def file():
+            random.seed(a=1234)
+            contents = (random_bytes(128) * 64 for _ in range(0, 12928))
+
+            def read(_):
+                try:
+                    return next(contents)
+                except StopIteration:
+                    return b''
+
+            return Readable(read=read)
+
+        def stor():
+            with FTP_TLS() as ftp:
+                ftp.encoding = 'utf-8'
+                ftp.connect(host='localhost', port=8021)
+                ftp.login(user='my-user', passwd='my-password')
+                ftp.prot_p()
+                ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', file())
+
+        await loop.run_in_executor(None, stor)
+
+        correct_file = file()
+        correct = b''
+        downloaded = b''
+        all_equal = True
+        num_checked = 0
+
+        def on_incoming(incoming):
+            nonlocal correct
+            nonlocal downloaded
+            nonlocal all_equal
+            nonlocal num_checked
+
+            downloaded += incoming
+
+            while len(correct) < len(downloaded):
+                correct += correct_file.read(None)
+
+            num_to_check = min(len(downloaded), len(correct))
+            all_equal = all_equal and downloaded[:num_to_check] == correct[:num_to_check]
+
+            downloaded = downloaded[num_to_check:]
+            correct = correct[num_to_check:]
+            num_checked += num_to_check
+
+        def get_data():
+            with FTP_TLS() as ftp:
+                ftp.encoding = 'utf-8'
+                ftp.connect(host='localhost', port=8021)
+                ftp.login(user='my-user', passwd='my-password')
+                ftp.prot_p()
+                ftp.retrbinary('RETR my £ 👨‍👩‍👧‍👦 🍰.bin', on_incoming)
+
+        await loop.run_in_executor(None, get_data)
+        self.assertEqual(num_checked, 105906176)
+        self.assertTrue(all_equal)
 
 
 def ftp_list(ftp):
