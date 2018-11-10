@@ -181,6 +181,60 @@ class TestAioFtpS3(unittest.TestCase):
         await ftp_run(mkd, 'subdirectory', loop=loop, user='my-user', passwd='my-password')
 
     @async_test
+    async def test_hierarchy_stor_and_rename(self):
+        loop = await self.setup_manual()
+
+        lines_1 = []
+        lines_2 = []
+        lines_3 = []
+        cwd_1 = None
+        cwd_2 = None
+        cwd_3 = None
+
+        def stor(ftp):
+            nonlocal lines_1
+            nonlocal lines_2
+            nonlocal lines_3
+            nonlocal cwd_1
+            nonlocal cwd_2
+            nonlocal cwd_3
+
+            ftp.storbinary('STOR file-1.bin', file((block for block in [b'Contents 1'])))
+            ftp.mkd('👨‍👩‍👧‍👦 🍰"dir')
+            ftp.cwd('👨‍👩‍👧‍👦 🍰"dir')
+            cwd_1 = ftp.pwd()
+            ftp.storbinary('STOR file-2.bin', file((block for block in [b'Contents 2'])))
+            ftp.storbinary('STOR file-3.bin', file((block for block in [b'Contents 3'])))
+            ftp.mkd('subdir')
+            ftp.cwd('subdir')
+            ftp.storbinary('STOR file-4.bin', file((block for block in [b'Contents 4'])))
+            ftp.cwd('..')
+            ftp.cwd('..')
+            ftp.rename('👨‍👩‍👧‍👦 🍰"dir', '"another dir"')
+            lines_1 = ftp_list(ftp)
+            ftp.cwd('"another dir"')
+            cwd_2 = ftp.pwd()
+            lines_2 = ftp_list(ftp)
+            ftp.cwd('subdir')
+            cwd_3 = ftp.pwd()
+            lines_3 = ftp_list(ftp)
+
+        await ftp_run(stor, loop=loop, user='my-user', passwd='my-password')
+
+        self.assertEqual(cwd_1, '/👨‍👩‍👧‍👦 🍰"dir')
+        self.assertEqual(cwd_2, '/"another dir"')
+        self.assertEqual(cwd_3, '/"another dir"/subdir')
+        self.assertEqual(len(lines_1), 2)
+        self.assertIn('"another dir"', lines_1[0])
+        self.assertIn('file-1.bin', lines_1[1])
+        self.assertEqual(len(lines_2), 3)
+        self.assertIn('subdir', lines_2[0])
+        self.assertIn('file-2.bin', lines_2[1])
+        self.assertIn('file-3.bin', lines_2[2])
+        self.assertEqual(len(lines_3), 1)
+        self.assertIn('file-4.bin', lines_3[0])
+
+    @async_test
     async def test_100mb_file(self):
         loop = await self.setup_manual()
 
