@@ -110,19 +110,10 @@ class TestAioFtpS3(unittest.TestCase):
     async def test_stor_then_list_and_retr(self):
         loop = await self.setup_manual()
 
-        def file():
-            contents = (block for block in [b'Some contents'])
-
-            def read(_):
-                try:
-                    return next(contents)
-                except StopIteration:
-                    return b''
-
-            return Readable(read=read)
+        contents = (block for block in [b'Some contents'])
 
         def stor_then_list(ftp):
-            ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', file())
+            ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', file(contents))
             return ftp_list(ftp)
 
         lines = await ftp_run(stor_then_list, loop=loop, user='my-user', passwd='my-password')
@@ -146,19 +137,10 @@ class TestAioFtpS3(unittest.TestCase):
     async def test_if_dir_not_exist_then_no_stor(self):
         loop = await self.setup_manual()
 
-        def file():
-            contents = (block for block in [b'Some contents'])
-
-            def read(_):
-                try:
-                    return next(contents)
-                except StopIteration:
-                    return b''
-
-            return Readable(read=read)
+        contents = (block for block in [b'Some contents'])
 
         def stor(ftp):
-            ftp.storbinary('STOR subdirectory/file.bin', file())
+            ftp.storbinary('STOR subdirectory/file.bin', file(contents))
 
         with self.assertRaises(error_temp):
             await ftp_run(stor, loop=loop, user='my-user', passwd='my-password')
@@ -205,24 +187,17 @@ class TestAioFtpS3(unittest.TestCase):
         def random_bytes(num_bytes):
             return bytes(random.getrandbits(8) for _ in range(num_bytes))
 
-        def file():
+        def random_file():
             random.seed(a=1234)
             contents = (random_bytes(128) * 64 for _ in range(0, 12928))
-
-            def read(_):
-                try:
-                    return next(contents)
-                except StopIteration:
-                    return b''
-
-            return Readable(read=read)
+            return file(contents)
 
         def stor(ftp):
-            ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', file())
+            ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', random_file())
 
         await ftp_run(stor, loop=loop, user='my-user', passwd='my-password')
 
-        correct_file = file()
+        correct_file = random_file()
         correct = b''
         downloaded = b''
         all_equal = True
@@ -252,6 +227,16 @@ class TestAioFtpS3(unittest.TestCase):
         await ftp_run(get_data, loop=loop, user='my-user', passwd='my-password')
         self.assertEqual(num_checked, 105906176)
         self.assertTrue(all_equal)
+
+
+def file(generator):
+    def read(_):
+        try:
+            return next(generator)
+        except StopIteration:
+            return b''
+
+    return Readable(read=read)
 
 
 def ftp_list(ftp):
