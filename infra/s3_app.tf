@@ -8,6 +8,11 @@ resource "aws_s3_bucket" "app" {
       }
     }
   }
+
+  lifecycle_rule {
+    enabled = true
+    abort_incomplete_multipart_upload_days = 2
+  }
 }
 
 resource "aws_s3_bucket_policy" "app" {
