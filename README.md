@@ -1,4 +1,4 @@
-# aioftps3 [![CircleCI](https://circleci.com/gh/uktrade/aioftps3.svg?style=svg)](https://circleci.com/gh/uktrade/aioftps3) [![Maintainability](https://api.codeclimate.com/v1/badges/4a9332f4782f6b4bf35a/maintainability)](https://codeclimate.com/github/uktrade/aioftps3/maintainability)
+# aioftps3 [![CircleCI](https://circleci.com/gh/uktrade/aioftps3.svg?style=svg)](https://circleci.com/gh/uktrade/aioftps3) [![Maintainability](https://api.codeclimate.com/v1/badges/4a9332f4782f6b4bf35a/maintainability)](https://codeclimate.com/github/uktrade/aioftps3/maintainability) [![Test Coverage](https://api.codeclimate.com/v1/badges/4a9332f4782f6b4bf35a/test_coverage)](https://codeclimate.com/github/uktrade/aioftps3/test_coverage)
 
 FTP in front of AWS S3, using [asyncio](https://docs.python.org/3/library/asyncio.html), and [aiohttp](https://github.com/aio-libs/aiohttp).
 
