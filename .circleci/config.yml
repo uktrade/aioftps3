@@ -12,14 +12,19 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install runtime dependencies
+          name: Install dependencies
           command: |
-            pip install -r requirements.txt
+            pip install -r requirements-test.txt
+            curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+            chmod +x ./cc-test-reporter
       - run:
           name: Run tests
           command: |
             ./certificates-create.sh
-            ./tests.sh
+            ./cc-test-reporter before-build
+            ./tests-with-coverage.sh
+            coverage xml
+            ./cc-test-reporter after-build --exit-code $?
       - run:
           # These are installed separately to ensure we don't
           # accidentally pass the tests with dependencies not
