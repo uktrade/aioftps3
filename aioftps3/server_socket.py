@@ -279,10 +279,11 @@ async def recv_until_close(loop, get_sock, max_recv_size):
 
 
 async def send(loop, get_sock, max_send_size, buf_memoryview):
+    fileno = get_sock().fileno()
     try:
         return await _send(loop, get_sock, max_send_size, buf_memoryview)
     except CancelledError:
-        loop.remove_writer(get_sock().fileno())
+        loop.remove_writer(fileno)
         raise
 
 
@@ -333,10 +334,11 @@ def _send(loop, get_sock, max_send_size, buf_memoryview):
 
 
 async def recv(loop, get_sock, max_recv_size, buf_memoryview):
+    fileno = get_sock().fileno()
     try:
         return await _recv(loop, get_sock, max_recv_size, buf_memoryview)
     except CancelledError:
-        loop.remove_reader(get_sock().fileno())
+        loop.remove_reader(fileno)
         raise
 
 
