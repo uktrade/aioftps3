@@ -168,6 +168,40 @@ class TestAioFtpS3(unittest.TestCase):
         self.assertEqual(len(lines_after_del), 0)
 
     @async_test
+    async def test_delete_must_have_file_specified(self):
+        loop = await self.setup_manual()
+
+        contents = (block for block in [b'Some contents'])
+
+        def stor_then_delete_all(ftp):
+            ftp.storbinary('STOR my-file.bin', file(contents))
+            ftp.delete('')
+
+        with self.assertRaises(BaseException):
+            await ftp_run(stor_then_delete_all, loop=loop, user='my-user', passwd='my-password')
+
+        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd='my-password')
+        match = re.match(LIST_REGEX, lines[0])
+        self.assertEqual(match[6], 'my-file.bin')
+
+    @async_test
+    async def test_rmdir_must_have_file_specified(self):
+        loop = await self.setup_manual()
+
+        contents = (block for block in [b'Some contents'])
+
+        def stor_then_rmdir_all(ftp):
+            ftp.storbinary('STOR my-file.bin', file(contents))
+            ftp.rmdir('')
+
+        with self.assertRaises(BaseException):
+            await ftp_run(stor_then_rmdir_all, loop=loop, user='my-user', passwd='my-password')
+
+        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd='my-password')
+        match = re.match(LIST_REGEX, lines[0])
+        self.assertEqual(match[6], 'my-file.bin')
+
+    @async_test
     async def test_if_parent_dir_not_exist_then_no_mkdir(self):
         loop = await self.setup_manual()
 
