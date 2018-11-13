@@ -8,6 +8,14 @@ FTP in front of AWS S3, using [asyncio](https://docs.python.org/3/library/asynci
 pip install aioftps3
 ```
 
+An SSL key and certificate must be present `$HOME/ssl.key` and `$HOME/ssl.crt` respectively. To create a self-signed certificate, you can use openssl.
+
+```bash
+openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 -subj /CN=selfsigned \
+    -keyout $HOME/ssl.key \
+    -out $HOME/ssl.crt
+```
+
 ## Running
 
 ```bash
