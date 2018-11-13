@@ -123,7 +123,7 @@ def _sock_accept(loop, sock, on_listening):
             conn.setblocking(False)
             on_listening(True)
         except BlockingIOError:
-            add_reader()
+            loop.add_reader(fileno, accept_with_reader)
             on_listening(True)
         except BaseException as exception:
             on_listening(False)
@@ -139,18 +139,12 @@ def _sock_accept(loop, sock, on_listening):
         except BlockingIOError:
             pass
         except BaseException as exception:
-            remove_reader()
+            loop.remove_reader(fileno)
             if not done.cancelled():
                 done.set_exception(exception)
         else:
-            remove_reader()
+            loop.remove_reader(fileno)
             done.set_result((conn, address))
-
-    def add_reader():
-        loop.add_reader(fileno, accept_with_reader)
-
-    def remove_reader():
-        loop.remove_reader(fileno)
 
     accept_without_reader()
 
@@ -302,7 +296,7 @@ def _send(loop, get_sock, max_send_size, buf_memoryview):
             num_bytes = get_sock().send(buf_memoryview[:max_bytes])
 
         except (SSLWantWriteError, BlockingIOError, InterruptedError):
-            add_writer()
+            loop.add_writer(fileno, write_with_writer)
 
         except BaseException as exception:
             if not result.cancelled():
@@ -322,22 +316,16 @@ def _send(loop, get_sock, max_send_size, buf_memoryview):
             pass
 
         except BaseException as exception:
-            remove_writer()
+            loop.remove_writer(fileno)
             if not result.cancelled():
                 result.set_exception(exception)
 
         else:
-            remove_writer()
+            loop.remove_writer(fileno)
             if num_bytes == 0:
                 result.set_exception(SocketClosed())
             else:
                 result.set_result(num_bytes)
-
-    def add_writer():
-        loop.add_writer(fileno, write_with_writer)
-
-    def remove_writer():
-        loop.remove_writer(fileno)
 
     write_without_writer()
 
@@ -362,7 +350,7 @@ def _recv(loop, get_sock, max_recv_size, buf_memoryview):
             num_bytes = get_sock().recv_into(buf_memoryview, max_bytes)
 
         except (SSLWantReadError, BlockingIOError, InterruptedError):
-            add_reader()
+            loop.add_reader(fileno, read_with_reader)
 
         except BaseException as exception:
             if not result.cancelled():
@@ -382,22 +370,16 @@ def _recv(loop, get_sock, max_recv_size, buf_memoryview):
             pass
 
         except BaseException as exception:
-            remove_reader()
+            loop.remove_reader(fileno)
             if not result.cancelled():
                 result.set_exception(exception)
 
         else:
-            remove_reader()
+            loop.remove_reader(fileno)
             if num_bytes == 0:
                 result.set_exception(SocketClosed())
             else:
                 result.set_result(num_bytes)
-
-    def add_reader():
-        loop.add_reader(fileno, read_with_reader)
-
-    def remove_reader():
-        loop.remove_reader(fileno)
 
     read_without_reader()
 
