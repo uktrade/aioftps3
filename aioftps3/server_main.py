@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import hashlib
 import ipaddress
 import logging
 import os
@@ -83,7 +85,7 @@ async def async_main(loop, environ, logger, ssl_context):
     s3_context = get_s3_context(session, credentials, bucket)
 
     users = {
-        user['LOGIN']: user['PASSWORD']
+        user['LOGIN']: (base64.b64decode(user['PASSWORD_HASHED']), user['PASSWORD_SALT'])
         for user in env['FTP_USERS']
     }
 
@@ -101,7 +103,11 @@ async def async_main(loop, environ, logger, ssl_context):
             logger.debug('%s: Locked out user attempting login.', user)
             return False
 
-        if constant_time_compare(users[user], possible_password):
+        hashed_correct_password, salt = users[user]
+        hashed_possible_password = hashlib.pbkdf2_hmac(
+            'sha256', possible_password.encode('ascii'), salt.encode('ascii'), iterations=1000000)
+
+        if constant_time_compare(hashed_correct_password, hashed_possible_password):
             logger.debug('%s: Password is correct. Allowing login.', user)
             return True
 

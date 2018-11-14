@@ -104,7 +104,7 @@ data "template_file" "healthcheck_container_definitions" {
     ftp_host         = "${aws_route53_record.ftps3_public.name}"
     ftp_command_port = "${var.ftp_command_port}"
     ftp_user         = "${local.healthcheck_ftp_user}"
-    ftp_password     = "${random_string.healthcheck_ftp_password.result}"
+    ftp_password     = "${var.healthcheck_ftp_password}"
   }
 }
 
@@ -154,9 +154,4 @@ resource "aws_alb_target_group" "healthcheck" {
   lifecycle {
     create_before_destroy = true
   }
-}
-
-resource "random_string" "healthcheck_ftp_password" {
-  length  = 64
-  special = true
 }

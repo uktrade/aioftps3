@@ -38,6 +38,12 @@ variable "healthcheck_public_subnet_a_cidr" {}
 variable "healthcheck_public_subnet_b_cidr" {}
 variable "healthcheck_private_subnet_cidr" {}
 
+variable healthcheck_ftp_password_hashed {}
+variable healthcheck_ftp_password_salt {}
+# The plaintext password for the healtcheck user is stored in the healthcheck application that
+# connects to the FTP server. The FTP server itself does not store it
+variable healthcheck_ftp_password {}
+
 variable "app_container_image" {}
 variable "app_bucket" {}
 

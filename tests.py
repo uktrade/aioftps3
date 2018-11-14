@@ -59,7 +59,7 @@ class TestAioFtpS3(unittest.TestCase):
                 func_name = 'delete' if match[1] == 'p' else 'rmd'
                 getattr(ftp, func_name)(match[6])
 
-        await ftp_run(delete_everything, loop=loop, user='my-user', passwd='my-password')
+        await ftp_run(delete_everything, loop=loop, user='my-user', passwd=get_password())
 
         async def cancel_server():
             server.cancel()
@@ -76,7 +76,7 @@ class TestAioFtpS3(unittest.TestCase):
         def nothing(_):
             pass
 
-        await ftp_run(nothing, loop=loop, user='my-user', passwd='my-password')
+        await ftp_run(nothing, loop=loop, user='my-user', passwd=get_password())
         # Will raise if fails
 
     @async_test
@@ -97,13 +97,13 @@ class TestAioFtpS3(unittest.TestCase):
             pass
 
         with self.assertRaises(error_perm):
-            await ftp_run(nothing, loop=loop, user='not-my-user', passwd='my-password')
+            await ftp_run(nothing, loop=loop, user='not-my-user', passwd=get_password())
 
     @async_test
     async def test_empty_list_root_directory(self):
         loop = await self.setup_manual()
 
-        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd='my-password')
+        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd=get_password())
         self.assertEqual(lines, [])
 
     @async_test
@@ -116,7 +116,7 @@ class TestAioFtpS3(unittest.TestCase):
             ftp.storbinary('STOR my £ 👨‍👩‍👧‍👦 🍰.bin', file(contents))
             return ftp_list(ftp)
 
-        lines = await ftp_run(stor_then_list, loop=loop, user='my-user', passwd='my-password')
+        lines = await ftp_run(stor_then_list, loop=loop, user='my-user', passwd=get_password())
         self.assertEqual(len(lines), 1)
         match = re.match(LIST_REGEX, lines[0])
         self.assertEqual(match[1], 'p')
@@ -130,7 +130,7 @@ class TestAioFtpS3(unittest.TestCase):
         def get_data(ftp):
             ftp.retrbinary('RETR my £ 👨‍👩‍👧‍👦 🍰.bin', on_incoming)
 
-        await ftp_run(get_data, loop=loop, user='my-user', passwd='my-password')
+        await ftp_run(get_data, loop=loop, user='my-user', passwd=get_password())
         self.assertEqual(data, b'Some contents')
 
     @async_test
@@ -143,7 +143,7 @@ class TestAioFtpS3(unittest.TestCase):
             ftp.storbinary('STOR subdirectory/file.bin', file(contents))
 
         with self.assertRaises(error_temp):
-            await ftp_run(stor, loop=loop, user='my-user', passwd='my-password')
+            await ftp_run(stor, loop=loop, user='my-user', passwd=get_password())
 
     @async_test
     async def test_create_and_delete_directories(self):
@@ -152,9 +152,9 @@ class TestAioFtpS3(unittest.TestCase):
         def create_directory(ftp):
             ftp.mkd('my-"  👨‍👩‍👧‍👦 🍰dir')
 
-        await ftp_run(create_directory, loop=loop, user='my-user', passwd='my-password')
+        await ftp_run(create_directory, loop=loop, user='my-user', passwd=get_password())
 
-        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd='my-password')
+        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd=get_password())
         self.assertEqual(len(lines), 1)
         match = re.match(LIST_REGEX, lines[0])
         self.assertEqual(match[1], 'd')
@@ -163,8 +163,8 @@ class TestAioFtpS3(unittest.TestCase):
         def delete_directory(ftp):
             ftp.rmd('my-"  👨‍👩‍👧‍👦 🍰dir')
 
-        await ftp_run(delete_directory, loop=loop, user='my-user', passwd='my-password')
-        lines_after_del = await ftp_run(ftp_list, loop=loop, user='my-user', passwd='my-password')
+        await ftp_run(delete_directory, loop=loop, user='my-user', passwd=get_password())
+        lines_after_del = await ftp_run(ftp_list, loop=loop, user='my-user', passwd=get_password())
         self.assertEqual(len(lines_after_del), 0)
 
     @async_test
@@ -178,9 +178,9 @@ class TestAioFtpS3(unittest.TestCase):
             ftp.delete('')
 
         with self.assertRaises(BaseException):
-            await ftp_run(stor_then_delete_all, loop=loop, user='my-user', passwd='my-password')
+            await ftp_run(stor_then_delete_all, loop=loop, user='my-user', passwd=get_password())
 
-        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd='my-password')
+        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd=get_password())
         match = re.match(LIST_REGEX, lines[0])
         self.assertEqual(match[6], 'my-file.bin')
 
@@ -195,9 +195,9 @@ class TestAioFtpS3(unittest.TestCase):
             ftp.rmdir('')
 
         with self.assertRaises(BaseException):
-            await ftp_run(stor_then_rmdir_all, loop=loop, user='my-user', passwd='my-password')
+            await ftp_run(stor_then_rmdir_all, loop=loop, user='my-user', passwd=get_password())
 
-        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd='my-password')
+        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd=get_password())
         match = re.match(LIST_REGEX, lines[0])
         self.assertEqual(match[6], 'my-file.bin')
 
@@ -210,9 +210,9 @@ class TestAioFtpS3(unittest.TestCase):
 
         with self.assertRaises(BaseException):
             await ftp_run(mkd, 'subdirectory/new-dir',
-                          loop=loop, user='my-user', passwd='my-password')
+                          loop=loop, user='my-user', passwd=get_password())
 
-        await ftp_run(mkd, 'subdirectory', loop=loop, user='my-user', passwd='my-password')
+        await ftp_run(mkd, 'subdirectory', loop=loop, user='my-user', passwd=get_password())
 
     @async_test
     async def test_hierarchy_stor_and_rename(self):
@@ -253,7 +253,7 @@ class TestAioFtpS3(unittest.TestCase):
             cwd_3 = ftp.pwd()
             lines_3 = ftp_list(ftp)
 
-        await ftp_run(stor, loop=loop, user='my-user', passwd='my-password')
+        await ftp_run(stor, loop=loop, user='my-user', passwd=get_password())
 
         self.assertEqual(cwd_1, '/👨‍👩‍👧‍👦 🍰"dir')
         self.assertEqual(cwd_2, '/"another dir"')
@@ -283,7 +283,7 @@ class TestAioFtpS3(unittest.TestCase):
         def stor(ftp):
             ftp.storbinary('STOR my £" 👨‍👩‍👧‍👦 🍰.bin', random_file())
 
-        await ftp_run(stor, loop=loop, user='my-user', passwd='my-password')
+        await ftp_run(stor, loop=loop, user='my-user', passwd=get_password())
 
         correct_file = random_file()
         correct = b''
@@ -312,7 +312,7 @@ class TestAioFtpS3(unittest.TestCase):
         def get_data(ftp):
             ftp.retrbinary('RETR my £" 👨‍👩‍👧‍👦 🍰.bin', on_incoming)
 
-        await ftp_run(get_data, loop=loop, user='my-user', passwd='my-password')
+        await ftp_run(get_data, loop=loop, user='my-user', passwd=get_password())
         self.assertEqual(num_checked, 105906176)
         self.assertTrue(all_equal)
 
@@ -360,7 +360,9 @@ def env():
         'AWS_S3_BUCKET_NAME': 'my-bucket',
         'AWS_S3_BUCKET_DIR_SUFFIX': '/.s3keep',
         'FTP_USERS__1__LOGIN': 'my-user',
-        'FTP_USERS__1__PASSWORD': 'my-password',
+        'FTP_USERS__1__PASSWORD_HASHED': 'N3HmktqTFxH6RArbScmnwQH3/S3Ow593NFdSVrftp2M=',
+        'FTP_USERS__1__PASSWORD_SALT':
+            'np1RamJvq2S9YwvvqC5o59fQDFgn4IcBfzmSwJWHvoPMwWCVRUzMePceRbL9FMOT',
         'FTP_COMMAND_PORT': '8021',
         'FTP_DATA_PORTS_FIRST': '4001',
         'FTP_DATA_PORTS_COUNT': '2',
@@ -368,3 +370,7 @@ def env():
         'FTP_DATA_CIDR_TO_DOMAINS__1__DOMAIN': '127.0.0.1',
         'HEALTHCHECK_PORT': '8022',
     }
+
+
+def get_password():
+    return 'kOcAeOQ7Pc'
