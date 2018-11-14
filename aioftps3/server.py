@@ -422,7 +422,8 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
         async for line in command_sock_recv_lines():
             command_bytes, _, arg = line.partition(b' ')
             command = command_bytes.decode('utf-8')
-            logger.debug('Inc: %s', command_bytes + b' ' + arg)
+            arg_to_log = arg if command != 'PASS' else b'********'
+            logger.debug('Inc: %s', command_bytes + b' ' + arg_to_log)
 
             async with timeout(loop, COMMAND_TIMEOUT_SECONDS):
                 if not is_good_sequence(command):
