@@ -41,10 +41,7 @@ class ExpiringSet:
         return item in self._store
 
 
-def constant_time_compare(str_a, str_b):
-    bytes_a = str_a.encode('utf-8')
-    bytes_b = str_b.encode('utf-8')
-
+def constant_time_compare(bytes_a, bytes_b):
     if len(bytes_a) != len(bytes_b):
         return False
 

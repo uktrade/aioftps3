@@ -134,8 +134,9 @@ data "template_file" "app_container_definitions" {
     aws_s3_bucket_name    = "${aws_s3_bucket.app.id}"
     aws_s3_bucket_region  = "${aws_s3_bucket.app.region}"
 
-    healthcheck_ftp_user     = "${local.healthcheck_ftp_user}"
-    healthcheck_ftp_password = "${random_string.healthcheck_ftp_password.result}"
+    healthcheck_ftp_user            = "${local.healthcheck_ftp_user}"
+    healthcheck_ftp_password_hashed = "${var.healthcheck_ftp_password_hashed}"
+    healthcheck_ftp_password_salt   = "${var.healthcheck_ftp_password_salt}"
 
     ftp_users              = "${join(",", data.template_file.ftp_users_json.*.rendered)}"
     ftp_command_port       = "${var.ftp_command_port}"
@@ -156,9 +157,10 @@ data "template_file" "ftp_users_json" {
   template = "${file("${path.module}/ecs_main_app_ftp_user.json_template")}"
 
   vars {
-    index    = "${count.index + 1}"
-    login    = "${lookup(var.ftp_users[count.index], "login")}"
-    password = "${lookup(var.ftp_users[count.index], "password")}"
+    index           = "${count.index + 1}"
+    login           = "${lookup(var.ftp_users[count.index], "login")}"
+    password_hashed = "${lookup(var.ftp_users[count.index], "password_hashed")}"
+    password_salt   = "${lookup(var.ftp_users[count.index], "password_salt")}"
   }
 }
 

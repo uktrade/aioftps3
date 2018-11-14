@@ -39,8 +39,12 @@
       "value": "${healthcheck_ftp_user}"
     },
     {
-      "name": "FTP_USERS__0__PASSWORD",
-      "value": "${healthcheck_ftp_password}"
+      "name": "FTP_USERS__0__PASSWORD_HASHED",
+      "value": "${healthcheck_ftp_password_hashed}"
+    },
+    {
+      "name": "FTP_USERS__0__PASSWORD_SALT",
+      "value": "${healthcheck_ftp_password_salt}"
     },
     ${ftp_users},
     {

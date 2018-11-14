@@ -3,6 +3,10 @@
   "value": "${login}"
 },
 {
-  "name": "FTP_USERS__${index}__PASSWORD",
-  "value": "${password}"
+  "name": "FTP_USERS__${index}__PASSWORD_HASHED",
+  "value": "${password_hashed}"
+},
+{
+  "name": "FTP_USERS__${index}__PASSWORD_SALT",
+  "value": "${password_salt}"
 }
