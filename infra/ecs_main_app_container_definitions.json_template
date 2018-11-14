@@ -34,6 +34,14 @@
       "name": "AWS_S3_BUCKET_DIR_SUFFIX",
       "value": "/"
     },
+    {
+      "name": "FTP_USERS__0__LOGIN",
+      "value": "${healthcheck_ftp_user}"
+    },
+    {
+      "name": "FTP_USERS__0__PASSWORD",
+      "value": "${healthcheck_ftp_password}"
+    },
     ${ftp_users},
     {
       "name": "FTP_COMMAND_PORT",

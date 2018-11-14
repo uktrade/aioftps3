@@ -20,6 +20,10 @@ data "aws_vpc_peering_connection" "private_subnet" {
   id = "${var.private_subnet_vpc_peering_connection_id}"
 }
 
+data "aws_eip" "healthcheck_nat" {
+  id = "${var.healthcheck_nat_eip_allocation_id}"
+}
+
 resource "aws_subnet" "public" {
   vpc_id     = "${data.aws_vpc.main.id}"
   cidr_block = "${var.public_subnet_cidr}"
@@ -114,4 +118,83 @@ resource "aws_route" "vpc_peering_connection_private_subnet" {
   route_table_id            = "${aws_route_table.private.id}"
   vpc_peering_connection_id = "${data.aws_vpc_peering_connection.private_subnet.id}"
   destination_cidr_block    = "${data.aws_vpc_peering_connection.private_subnet.cidr_block}"
+}
+
+resource "aws_subnet" "healthcheck_private" {
+  vpc_id     = "${data.aws_vpc.main.id}"
+  cidr_block = "${var.healthcheck_private_subnet_cidr}"
+
+  availability_zone = "${var.availability_zone}"
+
+  tags {
+    Name = "${var.name}-healthcheck-private-${var.availability_zone}"
+  }
+}
+
+resource "aws_nat_gateway" "healthcheck" {
+  allocation_id = "${data.aws_eip.healthcheck_nat.id}"
+  subnet_id     = "${aws_subnet.healthcheck_public_a.id}"
+}
+
+resource "aws_route_table" "healthcheck_private" {
+  vpc_id = "${data.aws_vpc.main.id}"
+  tags {
+    Name = "${var.name}-healthcheck-private"
+  }
+}
+
+resource "aws_route_table_association" "healthcheck_private" {
+  subnet_id      = "${aws_subnet.healthcheck_private.id}"
+  route_table_id = "${aws_route_table.healthcheck_private.id}"
+}
+
+resource "aws_route" "healthcheck_nat_gateway_ipv4" {
+  route_table_id         = "${aws_route_table.healthcheck_private.id}"
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = "${aws_nat_gateway.healthcheck.id}"
+}
+
+resource "aws_subnet" "healthcheck_public_a" {
+  vpc_id     = "${data.aws_vpc.main.id}"
+  cidr_block = "${var.healthcheck_public_subnet_a_cidr}"
+
+  availability_zone = "${var.availability_zone}"
+
+  tags {
+    Name = "${var.name}-healthcheck-public-${var.availability_zone}"
+  }
+}
+
+resource "aws_subnet" "healthcheck_public_b" {
+  vpc_id     = "${data.aws_vpc.main.id}"
+  cidr_block = "${var.healthcheck_public_subnet_b_cidr}"
+
+  availability_zone = "${var.availability_zone_secondary}"
+
+  tags {
+    Name = "${var.name}-healthcheck-public-${var.availability_zone_secondary}"
+  }
+}
+
+resource "aws_route_table" "healthcheck_public" {
+  vpc_id = "${data.aws_vpc.main.id}"
+  tags {
+    Name = "${var.name}-healthcheck-public"
+  }
+}
+
+resource "aws_route_table_association" "healthcheck_public_a" {
+  subnet_id      = "${aws_subnet.healthcheck_public_a.id}"
+  route_table_id = "${aws_route_table.healthcheck_public.id}"
+}
+
+resource "aws_route_table_association" "healthcheck_public_b" {
+  subnet_id      = "${aws_subnet.healthcheck_public_b.id}"
+  route_table_id = "${aws_route_table.healthcheck_public.id}"
+}
+
+resource "aws_route" "healthcheck_internet_gateway_ipv4" {
+  route_table_id         = "${aws_route_table.healthcheck_public.id}"
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = "${data.aws_internet_gateway.main.id}"
 }
