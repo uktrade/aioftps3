@@ -1,0 +1,22 @@
+FROM python:3.7.1-alpine3.8
+
+ENV \
+    LC_ALL=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LANGUAGE=en_US.UTF-8
+
+COPY requirements-healthcheck.txt /
+
+RUN \
+    apk add --no-cache \
+        tini=0.18.0-r0 && \
+    python3 -m ensurepip && \
+    pip3 install pip==18.01 && \
+    pip3 install -r requirements-healthcheck.txt
+
+COPY healthcheck.py /healthcheck.py
+ENTRYPOINT ["tini", "--"]
+CMD ["python3", "-m", "healthcheck"]
+
+RUN adduser -S healthcheck
+USER healthcheck

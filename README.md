@@ -109,6 +109,15 @@ docker tag ftps-s3:latest quay.io/uktrade/ftps-s3:latest && \
 docker push quay.io/uktrade/ftps-s3:latest
 ```
 
+
+## Building and pushing healthcheck application to Quay
+
+```bash
+docker build -t ftps-s3-healthcheck . -f Dockerfile-healthcheck && \
+docker tag ftps-s3-healthcheck:latest quay.io/uktrade/ftps-s3-healthcheck:latest && \
+docker push quay.io/uktrade/ftps-s3-healthcheck:latest
+```
+
 ## Building and pushing Minio, used for testing, to Quay
 
 ```bash

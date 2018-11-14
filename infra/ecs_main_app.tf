@@ -134,6 +134,9 @@ data "template_file" "app_container_definitions" {
     aws_s3_bucket_name    = "${aws_s3_bucket.app.id}"
     aws_s3_bucket_region  = "${aws_s3_bucket.app.region}"
 
+    healthcheck_ftp_user     = "${local.healthcheck_ftp_user}"
+    healthcheck_ftp_password = "${random_string.healthcheck_ftp_password.result}"
+
     ftp_users              = "${join(",", data.template_file.ftp_users_json.*.rendered)}"
     ftp_command_port       = "${var.ftp_command_port}"
     ftp_data_ports_first   = "${var.ftp_data_ports_first}"
