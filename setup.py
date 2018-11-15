@@ -1,9 +1,25 @@
+import re
 import setuptools
 
 
 def long_description():
     with open('README.md', 'r') as file:
-        return file.read()
+        raw_description = file.read()
+
+    regex = r'\[([^\]]+)\]\(([^\)]+)\)'
+    relative_link_base = 'https://github.com/uktrade/aioftps3/blob/master/'
+
+    def replace(match):
+        text, url_maybe_absolute = match[1], match[2]
+        is_absolute = \
+            url_maybe_absolute.startswith('http://') or url_maybe_absolute.startswith('https://')
+        url = \
+            url_maybe_absolute if is_absolute else \
+            relative_link_base + url_maybe_absolute
+
+        return f'[{text}]({url})'
+
+    return re.sub(regex, replace, raw_description)
 
 
 setuptools.setup(

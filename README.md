@@ -45,6 +45,18 @@ Configuration is through environment variables
 | `FTP_DATA_CIDR_TO_DOMAINS__i__DOMAIN` | See `FTP_DATA_CIDR_TO_DOMAINS__i__CIDR`. | `ftp.my-domain.com` |
 | `HEALTHCHECK_PORT` | The port the server listens on for healthcheck requests, such as from an AWS network load balancer. | `8022` |
 
+
+## Advanced usage
+
+The code in [aioftps3.server_main](aioftps3/server_main.py) satisfies a very particular use case, which may not be useful to most. However, the bulk of the code can be used for other cases: you will have to write your own aioftps3.server_main-equivalent, using the functions [aioftps3.server.on_client_connect](aioftps3/server.py) and [aioftps3.server_socket.server](aioftps3/server_socket.py). For example, you could
+
+- Store credentials, appropriately hashed, differently, .e.g. in a database.
+- Have the credentials hashed differently.
+- Allow/deny PASV mode data connections based on some condition.
+
+See the source of [aioftps3.server_main](aioftps3/server_main.py) for how these functions can be used.
+
+
 ## Creating a password and salt
 
 ```bash
