@@ -231,6 +231,13 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
         await s3_delete(logger, s3_context, s3_path)
         await command_responses.put(b'250 Requested file action okay, completed.')
 
+    async def command_rest(arg):
+        rest_from = int(arg)
+        if rest_from == 0:
+            await command_responses.put(b'350 Requested file action pending further information.')
+        else:
+            await cancel_current_task()
+
     async def command_list(_):
         s3_path = cwd
 
