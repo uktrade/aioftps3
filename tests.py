@@ -146,6 +146,50 @@ class TestAioFtpS3(unittest.TestCase):
             await ftp_run(stor, loop=loop, user='my-user', passwd=get_password())
 
     @async_test
+    async def test_if_rest_0_can_store(self):
+        loop = await self.setup_manual()
+
+        contents = (block for block in [b'Some contents'])
+
+        def stor(ftp):
+            ftp.sendcmd('REST 0')
+            ftp.storbinary('STOR file.bin', file(contents))
+
+        await ftp_run(stor, loop=loop, user='my-user', passwd=get_password())
+        lines = await ftp_run(ftp_list, loop=loop, user='my-user', passwd=get_password())
+        self.assertIn('file.bin', lines[0])
+        self.assertIn(str(len(b'Some contents')), lines[0])
+
+    @async_test
+    async def test_if_rest_0_can_retr(self):
+        loop = await self.setup_manual()
+
+        contents = (block for block in [b'Some contents'])
+
+        data = bytearray()
+
+        def on_incoming(incoming_data):
+            data.extend(bytearray(incoming_data))
+
+        def stor(ftp):
+            ftp.storbinary('STOR file.bin', file(contents))
+            ftp.sendcmd('REST 0')
+            ftp.retrbinary('RETR file.bin', on_incoming)
+
+        await ftp_run(stor, loop=loop, user='my-user', passwd=get_password())
+        self.assertEqual(data, b'Some contents')
+
+    @async_test
+    async def test_if_rest_not_0_disconnects(self):
+        loop = await self.setup_manual()
+
+        def stor(ftp):
+            ftp.sendcmd('REST 1')
+
+        with self.assertRaises(BaseException):
+            await ftp_run(stor, loop=loop, user='my-user', passwd=get_password())
+
+    @async_test
     async def test_create_and_delete_directories(self):
         loop = await self.setup_manual()
 
