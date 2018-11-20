@@ -134,6 +134,10 @@ resource "aws_subnet" "healthcheck_private" {
 resource "aws_nat_gateway" "healthcheck" {
   allocation_id = "${data.aws_eip.healthcheck_nat.id}"
   subnet_id     = "${aws_subnet.healthcheck_public_a.id}"
+
+  tags {
+    Name = "${var.name}-healthcheck"
+  }
 }
 
 resource "aws_route_table" "healthcheck_private" {
