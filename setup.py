@@ -24,7 +24,7 @@ def long_description():
 
 setuptools.setup(
     name='aioftps3',
-    version='0.0.5',
+    version='0.0.6',
     author='Department for International Trade - WebOps',
     author_email='webops@digital.trade.gov.uk',
     description='FTP in front of AWS S3, powered by asyncio and aiohttp',
