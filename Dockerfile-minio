@@ -2,7 +2,7 @@ FROM minio/minio:RELEASE.2018-10-25T01-27-03Z
 
 RUN \
     apk add --no-cache \
-        openssl=1.0.2p-r0
+        openssl=1.0.2q-r0
 COPY minio-entrypoint.sh /
 RUN mkdir -p /test-data/my-bucket
 
