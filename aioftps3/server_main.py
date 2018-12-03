@@ -205,7 +205,7 @@ async def async_main(loop, environ, logger, ssl_context, listening):
 #   that have the NLBs, rather the command port
 #
 # Maybe this isn't the best long term strategy, but ok for now.
-async def healthcheck(loop, logger, ssl_context):
+async def healthcheck(loop, logger):
     logger_with_context = get_logger_with_context(logger, 'healthcheck')
 
     def on_listening(_):
@@ -232,7 +232,7 @@ def main():
 
     healthcheck_logger = logging.getLogger('healthcheck')
     healthcheck_logger.setLevel(logging.WARNING)
-    loop.create_task(healthcheck(loop, healthcheck_logger, ssl_context))
+    loop.create_task(healthcheck(loop, healthcheck_logger))
 
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
