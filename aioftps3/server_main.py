@@ -169,7 +169,9 @@ async def async_main(loop, environ, logger, init_ssl_context, get_ssl_context, l
 
         return command_subnet_cidr == data_subnet_cidr
 
-    await init_ssl_context()
+    cert_path = f'{os.environ["HOME"]}/ssl.crt'
+    private_key_path = f'{os.environ["HOME"]}/ssl.key'
+    await init_ssl_context(cert_path, private_key_path)
 
     def on_listening(_):
         listening.set()
@@ -230,10 +232,7 @@ async def healthcheck(loop, logger):
 def main():
     loop = asyncio.get_event_loop()
 
-    cert_path = f'{os.environ["HOME"]}/ssl.crt'
-    private_key_path = f'{os.environ["HOME"]}/ssl.key'
-    init_ssl_context, get_ssl_context, refresh_cron = ssl_context_manager(cert_path,
-                                                                          private_key_path)
+    init_ssl_context, get_ssl_context, refresh_cron = ssl_context_manager()
     loop.create_task(refresh_cron())
 
     healthcheck_logger = logging.getLogger('healthcheck')

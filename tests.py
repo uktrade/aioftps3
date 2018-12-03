@@ -47,14 +47,13 @@ class TestAioFtpS3(unittest.TestCase):
         logger.handlers = []
         logger.addHandler(handler)
 
-        listening = asyncio.Event()
-
         ssl_context = None
-        async def init_ssl_context():
+        async def init_ssl_context(_, __):
             nonlocal ssl_context
             ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
             ssl_context.load_cert_chain('aioftps3-certs/ssl.crt', keyfile='aioftps3-certs/ssl.key')
 
+        listening = asyncio.Event()
         server = loop.create_task(async_main(loop, env(), logger, init_ssl_context,
                                              lambda: ssl_context, listening))
         await listening.wait()
