@@ -169,9 +169,15 @@ async def async_main(loop, environ, logger, init_ssl_context, get_ssl_context, l
 
         return command_subnet_cidr == data_subnet_cidr
 
-    cert_path = f'{os.environ["HOME"]}/ssl.crt'
-    private_key_path = f'{os.environ["HOME"]}/ssl.key'
-    await init_ssl_context(cert_path, private_key_path)
+    acme_bucket = get_s3_bucket(
+        region=env['AWS_S3_ACME_BUCKET']['REGION'],
+        host=env['AWS_S3_ACME_BUCKET']['HOST'],
+        verify_certs=env['AWS_S3_ACME_BUCKET']['VERIFY_CERTS'] == 'true',
+        name=env['AWS_S3_ACME_BUCKET']['NAME'],
+        dir_suffix=None,
+    )
+    acme_s3_context = get_s3_context(session, credentials, acme_bucket)
+    await init_ssl_context(env['HOME'], acme_s3_context)
 
     def on_listening(_):
         listening.set()
@@ -232,7 +238,8 @@ async def healthcheck(loop, logger):
 def main():
     loop = asyncio.get_event_loop()
 
-    init_ssl_context, get_ssl_context, refresh_cron = ssl_context_manager()
+    acme_logger = logging.getLogger('acme')
+    init_ssl_context, get_ssl_context, refresh_cron = ssl_context_manager(acme_logger)
     loop.create_task(refresh_cron())
 
     healthcheck_logger = logging.getLogger('healthcheck')

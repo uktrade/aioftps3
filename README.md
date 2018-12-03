@@ -65,10 +65,10 @@ python ./create_password.py
 
 ## Running tests
 
-Certificates must be created, and Minio, which emulates S3 locally, must be started
+Minio, which emulates S3 locally, must be started
 
 ```bash
-./certificates-create.sh && ./minio-start.sh
+./minio-start.sh
 ```
 
 and then to run the tests themselves.
@@ -107,7 +107,9 @@ docker run --rm -p 8021-8042:8021-8042 \
   -e AWS_S3_BUCKET__HOST=s3-eu-west-1.amazonaws.com \
   -e AWS_S3_BUCKET__NAME=my-bucket-name \
   -e AWS_S3_BUCKET__DIR_SUFFIX=/ \
-  -e AWS_S3_BUCKET__VERIFY_CERTS=false \
+  -e AWS_S3_ACME_BUCKET__REGION=eu-west-1 \
+  -e AWS_S3_ACME_BUCKET__HOST=s3-eu-west-1.amazonaws.com \
+  -e AWS_S3_ACME_BUCKET__NAME=my-bucket-name \
   -e FTP_USERS__1__LOGIN=user \
   -e FTP_USERS__1__PASSWORD_HASHED=ommitted \
   -e FTP_USERS__1__PASSWORD_SALT=ommitted \

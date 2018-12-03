@@ -8,14 +8,17 @@ from ftplib import (
     error_temp,
 )
 import logging
+import os
 import random
 import re
-import ssl
 import sys
 import unittest
 
 from aioftps3.server_main import (
     async_main,
+)
+from aioftps3.server_acme_route53 import (
+    ssl_context_manager,
 )
 
 
@@ -47,15 +50,12 @@ class TestAioFtpS3(unittest.TestCase):
         logger.handlers = []
         logger.addHandler(handler)
 
-        ssl_context = None
-        async def init_ssl_context(_, __):
-            nonlocal ssl_context
-            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-            ssl_context.load_cert_chain('aioftps3-certs/ssl.crt', keyfile='aioftps3-certs/ssl.key')
+        acme_logger = logging.getLogger('acme')
+        init_ssl_context, get_ssl_context, _ = ssl_context_manager(acme_logger)
 
         listening = asyncio.Event()
         server = loop.create_task(async_main(loop, env(), logger, init_ssl_context,
-                                             lambda: ssl_context, listening))
+                                             get_ssl_context, listening))
         await listening.wait()
 
         def delete_everything(ftp):
@@ -410,6 +410,10 @@ def env():
         'AWS_S3_BUCKET__NAME': 'my-bucket',
         'AWS_S3_BUCKET__DIR_SUFFIX': '/.s3keep',
         'AWS_S3_BUCKET__VERIFY_CERTS': 'false',
+        'AWS_S3_ACME_BUCKET__REGION': 'us-east-1',
+        'AWS_S3_ACME_BUCKET__HOST': 'localhost:9000',
+        'AWS_S3_ACME_BUCKET__NAME': 'my-bucket-acme',
+        'AWS_S3_ACME_BUCKET__VERIFY_CERTS': 'false',
         'FTP_USERS__1__LOGIN': 'my-user',
         'FTP_USERS__1__PASSWORD_HASHED': 'N3HmktqTFxH6RArbScmnwQH3/S3Ow593NFdSVrftp2M=',
         'FTP_USERS__1__PASSWORD_SALT':
@@ -420,6 +424,7 @@ def env():
         'FTP_DATA_CIDR_TO_DOMAINS__1__CIDR': '0.0.0.0/0',
         'FTP_DATA_CIDR_TO_DOMAINS__1__DOMAIN': '127.0.0.1',
         'HEALTHCHECK_PORT': '8022',
+        'HOME': os.environ['HOME'],
     }
 
 

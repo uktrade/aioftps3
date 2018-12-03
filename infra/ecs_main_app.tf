@@ -134,6 +134,10 @@ data "template_file" "app_container_definitions" {
     aws_s3_bucket__name    = "${aws_s3_bucket.app.id}"
     aws_s3_bucket__region  = "${aws_s3_bucket.app.region}"
 
+    aws_s3_acme_bucket_host    = "s3-${aws_s3_bucket.app_acme.region}.amazonaws.com"
+    aws_s3_acme_bucket_name    = "${aws_s3_bucket.app_acme.id}"
+    aws_s3_acme_bucket_region  = "${aws_s3_bucket.app_acme.region}"
+
     healthcheck_ftp_user            = "${local.healthcheck_ftp_user}"
     healthcheck_ftp_password_hashed = "${var.healthcheck_ftp_password_hashed}"
     healthcheck_ftp_password_salt   = "${var.healthcheck_ftp_password_salt}"

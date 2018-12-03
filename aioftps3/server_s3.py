@@ -250,20 +250,20 @@ async def _is_file(logger, context, path):
 
 
 async def _file_exists(logger, context, path):
-    response, _ = await _s3_request_full(logger, context, 'HEAD', '/' + _key(path), {}, {},
-                                         b'', _hash(b''))
+    response, _ = await s3_request_full(logger, context, 'HEAD', '/' + _key(path), {}, {},
+                                        b'', s3_hash(b''))
     return response.status == 200
 
 
 async def _dir_exists(logger, context, path):
-    response, _ = await _s3_request_full(logger, context, 'HEAD', '/' + _dir_key(context, path),
-                                         {}, {}, b'', _hash(b''))
+    response, _ = await s3_request_full(logger, context, 'HEAD', '/' + _dir_key(context, path),
+                                        {}, {}, b'', s3_hash(b''))
     return response.status == 200
 
 
 async def _mkdir(logger, context, path):
-    response, _ = await _s3_request_full(logger, context, 'PUT', '/' + _dir_key(context, path),
-                                         {}, {}, b'', _hash(b''))
+    response, _ = await s3_request_full(logger, context, 'PUT', '/' + _dir_key(context, path),
+                                        {}, {}, b'', s3_hash(b''))
     response.raise_for_status()
 
 
@@ -277,8 +277,8 @@ async def _rmdir(logger, context, path):
         return (key.key.count('/'), is_dir_file, key.key)
 
     for key in sorted(keys, key=delete_sort_key, reverse=True):
-        response, _ = await _s3_request_full(logger, context, 'DELETE', '/' + key.key, {}, {},
-                                             b'', _hash(b''))
+        response, _ = await s3_request_full(logger, context, 'DELETE', '/' + key.key, {}, {},
+                                            b'', s3_hash(b''))
         response.raise_for_status()
 
 
@@ -324,15 +324,15 @@ async def _rename(logger, context, rename_from, rename_to):
         headers = {
             'x-amz-copy-source': f'/{context.bucket.name}/{from_key}',
         }
-        response, _ = await _s3_request_full(logger, context, 'PUT', '/' + to_key, {}, headers,
-                                             b'', _hash(b''))
+        response, _ = await s3_request_full(logger, context, 'PUT', '/' + to_key, {}, headers,
+                                            b'', s3_hash(b''))
         response.raise_for_status()
 
     # ... and then delete the originals
 
     for from_key, _ in sorted(renames, key=sort_key):
-        response, _ = await _s3_request_full(logger, context, 'DELETE', '/' + from_key, {}, {},
-                                             b'', _hash(b''))
+        response, _ = await s3_request_full(logger, context, 'DELETE', '/' + from_key, {}, {},
+                                            b'', s3_hash(b''))
         response.raise_for_status()
 
 
@@ -342,8 +342,8 @@ async def _list(logger, context, path):
 
 
 async def _delete(logger, context, path):
-    response, _ = await _s3_request_full(logger, context, 'DELETE', '/' + _key(path), {}, {},
-                                         b'', _hash(b''))
+    response, _ = await s3_request_full(logger, context, 'DELETE', '/' + _key(path), {}, {},
+                                        b'', s3_hash(b''))
     response.raise_for_status()
 
 
@@ -439,8 +439,8 @@ async def _multipart_upload_start(logger, context, path):
     query = {
         'uploads': '',
     }
-    response, body = await _s3_request_full(logger, context, 'POST', '/' + _key(path), query, {},
-                                            b'', _hash(b''))
+    response, body = await s3_request_full(logger, context, 'POST', '/' + _key(path), query, {},
+                                           b'', s3_hash(b''))
     response.raise_for_status()
     return re.search(b'<UploadId>(.*)</UploadId>', body)[1].decode('utf-8')
 
@@ -458,8 +458,8 @@ async def _multipart_upload_part(logger, context, path, upload_id, part_number, 
         'uploadId': upload_id,
     }
     headers = {'Content-Length': str(part_length)}
-    response, _ = await _s3_request_full(logger, context, 'PUT', '/' + _key(path), query, headers,
-                                         part_payload, part_payload_hash)
+    response, _ = await s3_request_full(logger, context, 'PUT', '/' + _key(path), query, headers,
+                                        part_payload, part_payload_hash)
     response.raise_for_status()
     part_etag = response.headers['ETag']
 
@@ -476,12 +476,12 @@ async def _multipart_upload_complete(logger, context, path, upload_id, part_numb
         ) +
         '</CompleteMultipartUpload>'
     ).encode('utf-8')
-    payload_hash = _hash(payload)
+    payload_hash = s3_hash(payload)
     query = {
         'uploadId': upload_id,
     }
-    response, _ = await _s3_request_full(logger, context, 'POST', '/' + _key(path), query, {},
-                                         payload, payload_hash)
+    response, _ = await s3_request_full(logger, context, 'POST', '/' + _key(path), query, {},
+                                        payload, payload_hash)
     response.raise_for_status()
 
 
@@ -494,7 +494,7 @@ async def _get(logger, context, path, chunk_size):
     query = {}
     with logged(logger, 'Request: %s %s %s %s', [method, context.bucket.host, s3_path, query]):
         async with await _s3_request(logger, context, method, s3_path, query, {},
-                                     b'', _hash(b'')) as response:
+                                     b'', s3_hash(b'')) as response:
             response.raise_for_status()
             async for data in response.content.iter_chunked(chunk_size):
                 yield data
@@ -548,8 +548,8 @@ async def _list_keys(logger, context, key_prefix, delimeter):
         query = {
             **common_query,
         }
-        response, body = await _s3_request_full(logger, context, 'GET', '/', query, {},
-                                                b'', _hash(b''))
+        response, body = await s3_request_full(logger, context, 'GET', '/', query, {},
+                                               b'', s3_hash(b''))
         response.raise_for_status()
         return _parse_list_response(body)
 
@@ -558,8 +558,8 @@ async def _list_keys(logger, context, key_prefix, delimeter):
             **common_query,
             'continuation-token': token,
         }
-        response, body = await _s3_request_full(logger, context, 'GET', '/', query, {},
-                                                b'', _hash(b''))
+        response, body = await s3_request_full(logger, context, 'GET', '/', query, {},
+                                               b'', s3_hash(b''))
         response.raise_for_status()
         return _parse_list_response(body)
 
@@ -602,12 +602,12 @@ async def _list_keys(logger, context, key_prefix, delimeter):
         yield (prefixes_page, keys_page)
 
 
-def _hash(payload):
+def s3_hash(payload):
     return hashlib.sha256(payload).hexdigest()
 
 
-async def _s3_request_full(logger, context, method, path, query, api_pre_auth_headers,
-                           payload, payload_hash):
+async def s3_request_full(logger, context, method, path, query, api_pre_auth_headers,
+                          payload, payload_hash):
 
     with logged(logger, 'Request: %s %s %s %s %s',
                 [method, context.bucket.host, path, query, api_pre_auth_headers]):

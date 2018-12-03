@@ -39,6 +39,18 @@
       "value": "true"
     },
     {
+      "name": "AWS_S3_ACME_BUCKET__REGION",
+      "value": "${aws_s3_acme_bucket_host}"
+    },
+    {
+      "name": "AWS_S3_ACME_BUCKET__HOST",
+      "value": "${aws_s3_acme_bucket_name}"
+    },
+    {
+      "name": "AWS_S3_ACME_BUCKET__NAME",
+      "value": "${aws_s3_acme_bucket_region}"
+    },
+    {
       "name": "FTP_USERS__0__LOGIN",
       "value": "${healthcheck_ftp_user}"
     },

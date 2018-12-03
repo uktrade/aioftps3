@@ -5,6 +5,7 @@ RUN \
         openssl=1.0.2q-r0
 COPY minio-entrypoint.sh /
 RUN mkdir -p /test-data/my-bucket
+RUN mkdir -p /test-data/my-bucket-acme
 
 ENTRYPOINT ["/minio-entrypoint.sh"]
 CMD ["server", "/test-data"]
