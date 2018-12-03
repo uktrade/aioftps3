@@ -52,7 +52,7 @@ class TestAioFtpS3(unittest.TestCase):
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
         ssl_context.load_cert_chain('aioftps3-certs/ssl.crt', keyfile='aioftps3-certs/ssl.key')
 
-        server = loop.create_task(async_main(loop, env(), logger, ssl_context, listening))
+        server = loop.create_task(async_main(loop, env(), logger, lambda: ssl_context, listening))
         await listening.wait()
 
         def delete_everything(ftp):

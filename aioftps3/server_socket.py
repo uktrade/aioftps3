@@ -51,7 +51,7 @@ class SocketClosed(Exception):
     pass
 
 
-async def server(logger, loop, ssl_context, port, on_listening, client_handler, on_cancel):
+async def server(logger, loop, get_ssl_context, port, on_listening, client_handler, on_cancel):
 
     with logged(logger, 'Starting server on %s', [port]):
         sock = socket(family=AF_INET, type=SOCK_STREAM, proto=IPPROTO_TCP)
@@ -67,7 +67,7 @@ async def server(logger, loop, ssl_context, port, on_listening, client_handler, 
         try:
             with logged(client_logger, 'Client handler', []):
                 try:
-                    await client_handler(client_logger, loop, ssl_context, client_sock)
+                    await client_handler(client_logger, loop, get_ssl_context, client_sock)
                 except SocketClosed:
                     client_logger.debug('Socket closed')
         except CancelledError:
@@ -162,8 +162,8 @@ async def shutdown_socket(loop, sock):
         pass
 
 
-def ssl_get_socket(ssl_context, sock):
-    return ssl_context.wrap_socket(sock, server_side=True, do_handshake_on_connect=False)
+def ssl_get_socket(get_ssl_context, sock):
+    return get_ssl_context().wrap_socket(sock, server_side=True, do_handshake_on_connect=False)
 
 
 def ssl_complete_handshake(loop, ssl_sock):

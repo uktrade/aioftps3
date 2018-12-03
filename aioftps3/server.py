@@ -79,7 +79,7 @@ DATA_CHUNK_SIZE = 1024 * 64
 # prevent race conditions
 
 
-async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_ports,
+async def on_client_connect(logger, loop, get_ssl_context, sock, get_data_ip, data_ports,
                             is_data_sock_ok, is_user_correct, is_password_correct, s3_context):
     user = None
     is_authenticated = False
@@ -148,7 +148,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
         await command_responses.put(b'234 TLS negotiation will follow.')
         await command_responses.join()
         with logged(logger, 'Performing TLS handshake', []):
-            ssl_sock = ssl_get_socket(ssl_context, sock)
+            ssl_sock = ssl_get_socket(get_ssl_context, sock)
             await ssl_complete_handshake(loop, ssl_sock)
 
     async def command_syst(_):
@@ -326,7 +326,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
 
             try:
                 with logged(data_client_logger, 'Performing TLS handshake', []):
-                    ssl_data_sock = ssl_get_socket(ssl_context, data_sock)
+                    ssl_data_sock = ssl_get_socket(get_ssl_context, data_sock)
                     await ssl_complete_handshake(loop, ssl_data_sock)
 
                 async with timeout(loop, DATA_COMMAND_TIMEOUT_SECONDS):
@@ -364,7 +364,7 @@ async def on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_p
         data_port = random.sample(data_ports, 1)[0]
         data_ports.remove(data_port)
         data_logger = get_child_logger(logger, 'data')
-        data_server = loop.create_task(server(data_logger, loop, ssl_context, data_port,
+        data_server = loop.create_task(server(data_logger, loop, get_ssl_context, data_port,
                                               on_data_server_listening, on_data_client_connect,
                                               on_data_server_cancel))
         data_server.add_done_callback(on_data_server_close)

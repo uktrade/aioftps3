@@ -54,7 +54,7 @@ async def cancel_client_tasks(client_tasks):
         await asyncio.sleep(0)
 
 
-async def async_main(loop, environ, logger, ssl_context, listening):
+async def async_main(loop, environ, logger, get_ssl_context, listening):
     env = normalise_environment(environ)
     logger_with_context = get_logger_with_context(logger, 'ftps3')
 
@@ -173,12 +173,12 @@ async def async_main(loop, environ, logger, ssl_context, listening):
     def on_listening(_):
         listening.set()
 
-    async def _on_client_connect(logger, loop, ssl_context, sock):
-        await on_client_connect(logger, loop, ssl_context, sock, get_data_ip, data_ports,
+    async def _on_client_connect(logger, loop, get_ssl_context, sock):
+        await on_client_connect(logger, loop, get_ssl_context, sock, get_data_ip, data_ports,
                                 is_data_sock_ok, is_user_correct, is_password_correct, s3_context)
 
     try:
-        await server(logger_with_context, loop, ssl_context, command_port, on_listening,
+        await server(logger_with_context, loop, get_ssl_context, command_port, on_listening,
                      _on_client_connect, cancel_client_tasks)
     except asyncio.CancelledError:
         pass
@@ -215,9 +215,12 @@ async def healthcheck(loop, logger):
         await shutdown_socket(loop, sock)
 
     healthcheck_port = int(os.environ['HEALTHCHECK_PORT'])
-    ssl_context = None
+
+    def get_ssl_context():
+        return None
+
     try:
-        await server(logger_with_context, loop, ssl_context, healthcheck_port, on_listening,
+        await server(logger_with_context, loop, get_ssl_context, healthcheck_port, on_listening,
                      on_healthcheck_client_connect, cancel_client_tasks)
     except asyncio.CancelledError:
         pass
@@ -242,7 +245,8 @@ def main():
     logger.addHandler(handler)
 
     listening = asyncio.Event()
-    main_task = loop.create_task(async_main(loop, os.environ, logger, ssl_context, listening))
+    main_task = loop.create_task(async_main(loop, os.environ, logger, lambda: ssl_context,
+                                            listening))
     loop.add_signal_handler(signal.SIGINT, main_task.cancel)
     loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
 
