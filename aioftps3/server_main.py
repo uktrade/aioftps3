@@ -53,7 +53,7 @@ async def cancel_client_tasks(client_tasks):
         await asyncio.sleep(0)
 
 
-async def async_main(loop, environ, logger, get_ssl_context, listening):
+async def async_main(loop, environ, logger, init_ssl_context, get_ssl_context, listening):
     env = normalise_environment(environ)
     logger_with_context = get_logger_with_context(logger, 'ftps3')
 
@@ -169,6 +169,8 @@ async def async_main(loop, environ, logger, get_ssl_context, listening):
 
         return command_subnet_cidr == data_subnet_cidr
 
+    await init_ssl_context()
+
     def on_listening(_):
         listening.set()
 
@@ -230,7 +232,8 @@ def main():
 
     cert_path = f'{os.environ["HOME"]}/ssl.crt'
     private_key_path = f'{os.environ["HOME"]}/ssl.key'
-    get_context, refresh_cron = ssl_context_manager(cert_path, private_key_path)
+    init_ssl_context, get_ssl_context, refresh_cron = ssl_context_manager(cert_path,
+                                                                          private_key_path)
     loop.create_task(refresh_cron())
 
     healthcheck_logger = logging.getLogger('healthcheck')
@@ -244,7 +247,9 @@ def main():
     handler.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
-    main_task = loop.create_task(async_main(loop, os.environ, logger, get_context, listening))
+    listening = asyncio.Event()
+    main_task = loop.create_task(async_main(loop, os.environ, logger, init_ssl_context,
+                                            get_ssl_context, listening))
     loop.add_signal_handler(signal.SIGINT, main_task.cancel)
     loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
 

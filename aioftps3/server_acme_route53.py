@@ -11,7 +11,10 @@ def ssl_context_manager(cert_path, private_key_path):
     def get_context():
         return ssl_context
 
+    async def init_context():
+        pass
+
     async def refresh_cron():
         pass
 
-    return get_context, refresh_cron
+    return init_context, get_context, refresh_cron
