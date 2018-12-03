@@ -230,7 +230,8 @@ def main():
 
     cert_path = f'{os.environ["HOME"]}/ssl.crt'
     private_key_path = f'{os.environ["HOME"]}/ssl.key'
-    get_context = ssl_context_manager(cert_path, private_key_path)
+    get_context, refresh_cron = ssl_context_manager(cert_path, private_key_path)
+    loop.create_task(refresh_cron())
 
     healthcheck_logger = logging.getLogger('healthcheck')
     healthcheck_logger.setLevel(logging.WARNING)
