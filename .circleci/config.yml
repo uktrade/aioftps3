@@ -20,7 +20,6 @@ jobs:
       - run:
           name: Run tests
           command: |
-            ./certificates-create.sh
             ./cc-test-reporter before-build
             ./tests-with-coverage.sh
             coverage xml

@@ -49,6 +49,52 @@ data "aws_iam_policy_document" "app" {
   }
 }
 
+resource "aws_s3_bucket" "app_acme" {
+  bucket = "${var.app_bucket}-acme"
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
+
+  logging {
+    target_bucket = "${aws_s3_bucket.app_access_log.id}"
+    target_prefix = "${var.app_bucket}-acme/"
+  }
+
+  lifecycle_rule {
+    enabled = true
+    abort_incomplete_multipart_upload_days = 2
+  }
+}
+
+data "aws_iam_policy_document" "app_acme" {
+  statement {
+    effect = "Deny"
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    actions = [
+      "s3:*",
+    ]
+    resources = [
+      "arn:aws:s3:::${aws_s3_bucket.app_acme.id}",
+      "arn:aws:s3:::${aws_s3_bucket.app_acme.id}/*",
+    ]
+    condition {
+      test = "Bool"
+      variable = "aws:SecureTransport"
+      values = [
+        "false"
+      ]
+    }
+  }
+}
+
 resource "aws_s3_bucket" "app_access_log" {
   bucket = "${var.app_bucket}-access-log"
   acl    = "log-delivery-write"
