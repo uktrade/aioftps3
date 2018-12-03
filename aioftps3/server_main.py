@@ -5,10 +5,6 @@ import ipaddress
 import logging
 import os
 import signal
-from ssl import (
-    PROTOCOL_TLSv1_2,
-    SSLContext,
-)
 import sys
 
 import aiodns
@@ -16,6 +12,9 @@ import aiohttp
 
 from aioftps3.server import (
     on_client_connect,
+)
+from aioftps3.server_acme_route53 import (
+    ssl_context_manager,
 )
 from aioftps3.server_logger import (
     get_logger_with_context,
@@ -229,9 +228,9 @@ async def healthcheck(loop, logger):
 def main():
     loop = asyncio.get_event_loop()
 
-    ssl_context = SSLContext(PROTOCOL_TLSv1_2)
-    ssl_context.load_cert_chain(f'{os.environ["HOME"]}/ssl.crt',
-                                keyfile=f'{os.environ["HOME"]}/ssl.key')
+    cert_path = f'{os.environ["HOME"]}/ssl.crt'
+    private_key_path = f'{os.environ["HOME"]}/ssl.key'
+    get_context = ssl_context_manager(cert_path, private_key_path)
 
     healthcheck_logger = logging.getLogger('healthcheck')
     healthcheck_logger.setLevel(logging.WARNING)
@@ -244,9 +243,7 @@ def main():
     handler.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
-    listening = asyncio.Event()
-    main_task = loop.create_task(async_main(loop, os.environ, logger, lambda: ssl_context,
-                                            listening))
+    main_task = loop.create_task(async_main(loop, os.environ, logger, get_context, listening))
     loop.add_signal_handler(signal.SIGINT, main_task.cancel)
     loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
 
