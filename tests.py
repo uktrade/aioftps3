@@ -47,10 +47,13 @@ class TestAioFtpS3(unittest.TestCase):
         logger.handlers = []
         logger.addHandler(handler)
 
+        listening = asyncio.Event()
+
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
         ssl_context.load_cert_chain('aioftps3-certs/ssl.crt', keyfile='aioftps3-certs/ssl.key')
 
-        server = loop.create_task(async_main(loop, env(), logger, ssl_context))
+        server = loop.create_task(async_main(loop, env(), logger, ssl_context, listening))
+        await listening.wait()
 
         def delete_everything(ftp):
             lines = ftp_list(ftp)
