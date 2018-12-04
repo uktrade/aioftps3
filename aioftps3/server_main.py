@@ -22,8 +22,8 @@ from aioftps3.server_logger import (
 from aioftps3.server_s3 import (
     get_s3_bucket,
     get_s3_context,
-    get_s3_ecs_role_credentials,
-    get_s3_secret_access_key_credentials,
+    get_ecs_role_credentials,
+    get_secret_access_key_credentials,
 )
 from aioftps3.server_socket import (
     server,
@@ -65,11 +65,11 @@ async def async_main(loop, environ, logger, init_ssl_context, get_ssl_context, l
     session = aiohttp.ClientSession(loop=loop)
 
     auth_mechanisms = {
-        'secret_access_key': lambda: get_s3_secret_access_key_credentials(
+        'secret_access_key': lambda: get_secret_access_key_credentials(
             access_key_id=env['AWS_ACCESS_KEY_ID'],
             secret_access_key=env['AWS_SECRET_ACCESS_KEY'],
         ),
-        'ecs_role': lambda: get_s3_ecs_role_credentials(
+        'ecs_role': lambda: get_ecs_role_credentials(
             url='http://169.254.170.2/' + env['AWS_CONTAINER_CREDENTIALS_RELATIVE_URI'],
         ),
     }
