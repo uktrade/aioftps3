@@ -18,13 +18,13 @@ def ssl_context_manager(logger):
     async def init_context(local_path, context):
         nonlocal ssl_context
 
-        cert_response, cert_data = await s3_request_full(logger, context, 'GET', '/ssl.crt',
-                                                         {}, {}, b'', s3_hash(b''))
-        cert_response.raise_for_status()
-
         key_response, key_data = await s3_request_full(logger, context, 'GET', '/ssl.key', {}, {},
                                                        b'', s3_hash(b''))
         key_response.raise_for_status()
+
+        cert_response, cert_data = await s3_request_full(logger, context, 'GET', '/ssl.crt',
+                                                         {}, {}, b'', s3_hash(b''))
+        cert_response.raise_for_status()
 
         cert_path = f'{local_path}/ssl.crt'
         with open(cert_path, 'wb') as cert_file:
