@@ -43,7 +43,7 @@ Stat = namedtuple(
     ['st_size', 'st_mtime', 'st_ctime', 'st_nlink', 'st_mode'],
 )
 
-S3Credentials = namedtuple('AwsCredentials', [
+AwsCredentials = namedtuple('AwsCredentials', [
     'access_key_id', 'secret_access_key', 'pre_auth_headers',
 ])
 
@@ -72,10 +72,10 @@ class S3ListPath(PurePosixPath):
         return self
 
 
-def get_s3_secret_access_key_credentials(access_key_id, secret_access_key):
+def get_secret_access_key_credentials(access_key_id, secret_access_key):
 
     async def get(_, __):
-        return S3Credentials(
+        return AwsCredentials(
             access_key_id=access_key_id,
             secret_access_key=secret_access_key,
             pre_auth_headers={},
@@ -84,7 +84,7 @@ def get_s3_secret_access_key_credentials(access_key_id, secret_access_key):
     return get
 
 
-def get_s3_ecs_role_credentials(url):
+def get_ecs_role_credentials(url):
 
     aws_access_key_id = None
     aws_secret_access_key = None
@@ -111,7 +111,7 @@ def get_s3_ecs_role_credentials(url):
             token = creds['Token']
             expiration = datetime.strptime(creds['Expiration'], '%Y-%m-%dT%H:%M:%SZ')
 
-        return S3Credentials(
+        return AwsCredentials(
             access_key_id=aws_access_key_id,
             secret_access_key=aws_secret_access_key,
             pre_auth_headers={
