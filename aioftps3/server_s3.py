@@ -91,7 +91,7 @@ def get_ecs_role_credentials(url):
     token = None
     expiration = datetime(1900, 1, 1)
 
-    async def get(logger, context):
+    async def get(logger, session):
         nonlocal aws_access_key_id
         nonlocal aws_secret_access_key
         nonlocal token
@@ -102,7 +102,7 @@ def get_ecs_role_credentials(url):
         if now > expiration:
             method = 'GET'
             with logged(logger, 'Requesting temporary credentials from %s', [url]):
-                async with context.session.request(method, url) as response:
+                async with session.request(method, url) as response:
                     response.raise_for_status()
                     creds = json.loads(await response.read())
 
@@ -618,28 +618,34 @@ async def s3_request_full(logger, context, method, path, query, api_pre_auth_hea
 
 async def _s3_request(logger, context, method, path, query, api_pre_auth_headers,
                       payload, payload_hash):
-    service = 's3'
-    creds = await context.credentials(logger, context)
+    bucket = context.bucket
+    return await _aws_request(
+        logger, context.session, 's3', bucket.region, bucket.host, bucket.verify_certs,
+        context.credentials, method, f'/{bucket.name}{path}', query, api_pre_auth_headers,
+        payload, payload_hash)
+
+
+async def _aws_request(logger, session, service, region, host, verify_certs,
+                       credentials, method, full_path, query, api_pre_auth_headers,
+                       payload, payload_hash):
+    creds = await credentials(logger, session)
     pre_auth_headers = {
         **api_pre_auth_headers,
         **creds.pre_auth_headers,
     }
-    bucket = context.bucket
-    full_path = f'/{bucket.name}{path}'
 
     headers = _aws_sig_v4_headers(
         creds.access_key_id, creds.secret_access_key, pre_auth_headers,
-        service, bucket.region, bucket.host, method, full_path, query, payload_hash,
+        service, region, host, method, full_path, query, payload_hash,
     )
 
     querystring = urllib.parse.urlencode(query, safe='~', quote_via=urllib.parse.quote)
     encoded_path = urllib.parse.quote(full_path, safe='/~')
-    url = f'https://{bucket.host}{encoded_path}' + \
-          (('?' + querystring) if querystring else '')
+    url = f'https://{host}{encoded_path}' + (('?' + querystring) if querystring else '')
 
     # aiohttp seems to treat both ssl=False and ssl=True as config to _not_ verify certificates
-    ssl = {} if bucket.verify_certs else {'ssl': False}
-    return context.session.request(method, url, headers=headers, data=payload, **ssl)
+    ssl = {} if verify_certs else {'ssl': False}
+    return session.request(method, url, headers=headers, data=payload, **ssl)
 
 
 def _aws_sig_v4_headers(access_key_id, secret_access_key, pre_auth_headers,
