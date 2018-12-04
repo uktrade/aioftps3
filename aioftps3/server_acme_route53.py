@@ -18,6 +18,10 @@ def ssl_context_manager(logger):
     async def init_context(local_path, context):
         nonlocal ssl_context
 
+        key_response, key_data = await s3_request_full(logger, context, 'GET', '/account.key',
+                                                       {}, {}, b'', s3_hash(b''))
+        key_response.raise_for_status()
+
         key_response, key_data = await s3_request_full(logger, context, 'GET', '/ssl.key', {}, {},
                                                        b'', s3_hash(b''))
         key_response.raise_for_status()
