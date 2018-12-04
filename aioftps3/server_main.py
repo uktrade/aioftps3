@@ -78,7 +78,7 @@ async def async_main(loop, environ, logger, ssl_context, listening):
     bucket = get_s3_bucket(
         region=env['AWS_S3_BUCKET']['REGION'],
         host=env['AWS_S3_BUCKET']['HOST'],
-        verify_certs=True,
+        verify_certs=env['AWS_S3_BUCKET']['VERIFY_CERTS'] == 'true',
         name=env['AWS_S3_BUCKET']['NAME'],
         dir_suffix=env['AWS_S3_BUCKET']['DIR_SUFFIX'],
     )

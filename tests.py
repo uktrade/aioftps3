@@ -406,6 +406,7 @@ def env():
         'AWS_S3_BUCKET__HOST': 'localhost:9000',
         'AWS_S3_BUCKET__NAME': 'my-bucket',
         'AWS_S3_BUCKET__DIR_SUFFIX': '/.s3keep',
+        'AWS_S3_BUCKET__VERIFY_CERTS': 'false',
         'FTP_USERS__1__LOGIN': 'my-user',
         'FTP_USERS__1__PASSWORD_HASHED': 'N3HmktqTFxH6RArbScmnwQH3/S3Ow593NFdSVrftp2M=',
         'FTP_USERS__1__PASSWORD_SALT':

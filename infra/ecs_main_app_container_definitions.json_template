@@ -35,6 +35,10 @@
       "value": "/"
     },
     {
+      "name": "AWS_S3_BUCKET__VERIFY_CERTS",
+      "value": "true"
+    },
+    {
       "name": "FTP_USERS__0__LOGIN",
       "value": "${healthcheck_ftp_user}"
     },

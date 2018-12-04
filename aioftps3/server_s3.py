@@ -636,8 +636,9 @@ async def _s3_request(logger, context, method, path, query, api_pre_auth_headers
     url = f'https://{bucket.host}{encoded_path}' + \
           (('?' + querystring) if querystring else '')
 
-    return context.session.request(method, url, ssl=bucket.verify_certs,
-                                   headers=headers, data=payload)
+    # aiohttp seems to treat both ssl=False and ssl=True as config to _not_ verify certificates
+    ssl = {} if bucket.verify_certs else {'ssl': False}
+    return context.session.request(method, url, headers=headers, data=payload, **ssl)
 
 
 def _aws_sig_v4_headers(access_key_id, secret_access_key, pre_auth_headers,

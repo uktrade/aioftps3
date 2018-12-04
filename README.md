@@ -107,6 +107,7 @@ docker run --rm -p 8021-8042:8021-8042 \
   -e AWS_S3_BUCKET__HOST=s3-eu-west-1.amazonaws.com \
   -e AWS_S3_BUCKET__NAME=my-bucket-name \
   -e AWS_S3_BUCKET__DIR_SUFFIX=/ \
+  -e AWS_S3_BUCKET__VERIFY_CERTS=false \
   -e FTP_USERS__1__LOGIN=user \
   -e FTP_USERS__1__PASSWORD_HASHED=ommitted \
   -e FTP_USERS__1__PASSWORD_SALT=ommitted \
