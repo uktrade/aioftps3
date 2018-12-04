@@ -14,7 +14,7 @@ from aioftps3.server import (
     on_client_connect,
 )
 from aioftps3.server_acme_route53 import (
-    ssl_context_manager,
+    acme_context_manager,
 )
 from aioftps3.server_logger import (
     get_logger_with_context,
@@ -239,7 +239,7 @@ def main():
     loop = asyncio.get_event_loop()
 
     acme_logger = logging.getLogger('acme')
-    init_ssl_context, get_ssl_context, refresh_cron = ssl_context_manager(acme_logger)
+    init_ssl_context, get_ssl_context, refresh_cron = acme_context_manager(acme_logger)
     loop.create_task(refresh_cron())
 
     healthcheck_logger = logging.getLogger('healthcheck')
