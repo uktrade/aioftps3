@@ -18,7 +18,7 @@ from aioftps3.server_main import (
     async_main,
 )
 from aioftps3.server_acme_route53 import (
-    ssl_context_manager,
+    acme_context_manager,
 )
 
 
@@ -51,7 +51,7 @@ class TestAioFtpS3(unittest.TestCase):
         logger.addHandler(handler)
 
         acme_logger = logging.getLogger('acme')
-        init_ssl_context, get_ssl_context, _ = ssl_context_manager(acme_logger)
+        init_ssl_context, get_ssl_context, _ = acme_context_manager(acme_logger)
 
         listening = asyncio.Event()
         server = loop.create_task(async_main(loop, env(), logger, init_ssl_context,

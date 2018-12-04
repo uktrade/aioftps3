@@ -9,7 +9,7 @@ from aioftps3.server_s3 import (
 )
 
 
-def ssl_context_manager(logger):
+def acme_context_manager(logger):
     ssl_context = None
 
     def get_context():
