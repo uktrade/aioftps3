@@ -19,19 +19,19 @@
       "value": "ecs_role"
     },
     {
-      "name": "AWS_S3_BUCKET_HOST",
-      "value": "${aws_s3_bucket_host}"
+      "name": "AWS_S3_BUCKET__HOST",
+      "value": "${aws_s3_bucket__host}"
     },
     {
-      "name": "AWS_S3_BUCKET_NAME",
-      "value": "${aws_s3_bucket_name}"
+      "name": "AWS_S3_BUCKET__NAME",
+      "value": "${aws_s3_bucket__name}"
     },
     {
-      "name": "AWS_S3_BUCKET_REGION",
-      "value": "${aws_s3_bucket_region}"
+      "name": "AWS_S3_BUCKET__REGION",
+      "value": "${aws_s3_bucket__region}"
     },
     {
-      "name": "AWS_S3_BUCKET_DIR_SUFFIX",
+      "name": "AWS_S3_BUCKET__DIR_SUFFIX",
       "value": "/"
     },
     {

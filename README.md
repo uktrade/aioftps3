@@ -103,10 +103,10 @@ docker run --rm -p 8021-8042:8021-8042 \
   -e AWS_AUTH_MECHANISM=secret_access_key \
   -e AWS_ACCESS_KEY_ID=ommitted \
   -e AWS_SECRET_ACCESS_KEY=ommitted \
-  -e AWS_S3_BUCKET_REGION=eu-west-1 \
-  -e AWS_S3_BUCKET_HOST=s3-eu-west-1.amazonaws.com \
-  -e AWS_S3_BUCKET_NAME=my-bucket-name \
-  -e AWS_S3_BUCKET_DIR_SUFFIX=/ \
+  -e AWS_S3_BUCKET__REGION=eu-west-1 \
+  -e AWS_S3_BUCKET__HOST=s3-eu-west-1.amazonaws.com \
+  -e AWS_S3_BUCKET__NAME=my-bucket-name \
+  -e AWS_S3_BUCKET__DIR_SUFFIX=/ \
   -e FTP_USERS__1__LOGIN=user \
   -e FTP_USERS__1__PASSWORD_HASHED=ommitted \
   -e FTP_USERS__1__PASSWORD_SALT=ommitted \

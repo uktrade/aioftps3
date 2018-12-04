@@ -76,11 +76,11 @@ async def async_main(loop, environ, logger, ssl_context, listening):
     }
     credentials = auth_mechanisms[env['AWS_AUTH_MECHANISM']]()
     bucket = get_s3_bucket(
-        region=env['AWS_S3_BUCKET_REGION'],
-        host=env['AWS_S3_BUCKET_HOST'],
+        region=env['AWS_S3_BUCKET']['REGION'],
+        host=env['AWS_S3_BUCKET']['HOST'],
         verify_certs=True,
-        name=env['AWS_S3_BUCKET_NAME'],
-        dir_suffix=env['AWS_S3_BUCKET_DIR_SUFFIX'],
+        name=env['AWS_S3_BUCKET']['NAME'],
+        dir_suffix=env['AWS_S3_BUCKET']['DIR_SUFFIX'],
     )
     s3_context = get_s3_context(session, credentials, bucket)
 

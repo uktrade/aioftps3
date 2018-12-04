@@ -130,9 +130,9 @@ data "template_file" "app_container_definitions" {
     log_group  = "${aws_cloudwatch_log_group.aws_ecs_task_definition_app.name}"
     log_region = "${data.aws_region.aws_region.name}"
 
-    aws_s3_bucket_host    = "s3-${aws_s3_bucket.app.region}.amazonaws.com"
-    aws_s3_bucket_name    = "${aws_s3_bucket.app.id}"
-    aws_s3_bucket_region  = "${aws_s3_bucket.app.region}"
+    aws_s3_bucket__host    = "s3-${aws_s3_bucket.app.region}.amazonaws.com"
+    aws_s3_bucket__name    = "${aws_s3_bucket.app.id}"
+    aws_s3_bucket__region  = "${aws_s3_bucket.app.region}"
 
     healthcheck_ftp_user            = "${local.healthcheck_ftp_user}"
     healthcheck_ftp_password_hashed = "${var.healthcheck_ftp_password_hashed}"
