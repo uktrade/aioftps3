@@ -139,15 +139,16 @@ async def async_main(loop, environ, logger, listening):
         # So, we are able to match the incoming IP against the subnet CIDRS,
         # each to "reverse engineer" the correct IP for each command
         # connection
-        client_ip = ipaddress.IPv4Network(command_sock.getpeername()[0] + '/32')
+        return ((await resolver.query(get_domain(command_sock), 'A'))[0]).host
 
-        matching_domain = [
+    def get_domain(sock):
+        client_ip = ipaddress.IPv4Network(sock.getpeername()[0] + '/32')
+
+        return [
             cidr['DOMAIN']
             for cidr in data_cidrs
             if client_ip.subnet_of(ipaddress.IPv4Network(cidr['CIDR']))
         ][0]
-
-        return ((await resolver.query(matching_domain, 'A'))[0]).host
 
     async def is_data_sock_ok(command_sock, data_sock):
         # We don't have the actual client IP, so we can't check that the data sock is from the same
@@ -189,12 +190,12 @@ async def async_main(loop, environ, logger, listening):
         zone_id=env['AWS_ROUTE_53']['ZONE_ID'],
     )
     acme_logger = get_child_logger(logger_with_context, 'acme')
-    init_ssl_context, get_ssl_context = acme_ssl_context_manager(acme_logger)
     acme_context = AcmeContext(session=session, directory_url=env['ACME_DIRECTORY'])
-    domain = data_cidrs[0]['DOMAIN']
+    domains = [data_cidr['DOMAIN'] for data_cidr in data_cidrs]
+    renew_cron, get_ssl_context = await acme_ssl_context_manager(
+        acme_logger, acme_s3_context, acme_route53_context, acme_context, get_domain,
+        domains, env['ACME_PATH'])
 
-    renew_cron = await init_ssl_context(
-        acme_s3_context, acme_route53_context, acme_context, domain, env['ACME_PATH'])
     renew_cron_task = loop.create_task(renew_cron)
 
     def on_listening(_):
@@ -243,7 +244,7 @@ async def healthcheck(loop, logger):
 
     healthcheck_port = int(os.environ['HEALTHCHECK_PORT'])
 
-    def get_ssl_context():
+    def get_ssl_context(_):
         return None
 
     try:

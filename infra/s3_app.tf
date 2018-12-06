@@ -78,18 +78,32 @@ resource "aws_s3_bucket_object" "acme_account_key" {
   etag   = "${md5(file("account.key"))}"
 }
 
-resource "aws_s3_bucket_object" "acme_ssl_key" {
+resource "aws_s3_bucket_object" "acme_private_ssl_key" {
   bucket = "${aws_s3_bucket.app_acme.bucket}"
-  key    = "ssl.key"
-  source = "ssl.key"
-  etag   = "${md5(file("ssl.key"))}"
+  key    = "${aws_route53_record.ftps3_private.name}.key"
+  source = "${aws_route53_record.ftps3_private.name}.key"
+  etag   = "${md5(file("${aws_route53_record.ftps3_private.name}.key"))}"
 }
 
-resource "aws_s3_bucket_object" "acme_ssl_csr" {
+resource "aws_s3_bucket_object" "acme_private_ssl_csr" {
   bucket = "${aws_s3_bucket.app_acme.bucket}"
-  key    = "ssl.csr"
-  source = "ssl.csr"
-  etag   = "${md5(file("ssl.csr"))}"
+  key    = "${aws_route53_record.ftps3_private.name}.csr"
+  source = "${aws_route53_record.ftps3_private.name}.csr"
+  etag   = "${md5(file("${aws_route53_record.ftps3_private.name}.csr"))}"
+}
+
+resource "aws_s3_bucket_object" "acme_public_ssl_key" {
+  bucket = "${aws_s3_bucket.app_acme.bucket}"
+  key    = "${aws_route53_record.ftps3_public.name}.key"
+  source = "${aws_route53_record.ftps3_public.name}.key"
+  etag   = "${md5(file("${aws_route53_record.ftps3_public.name}.key"))}"
+}
+
+resource "aws_s3_bucket_object" "acme_public_ssl_csr" {
+  bucket = "${aws_s3_bucket.app_acme.bucket}"
+  key    = "${aws_route53_record.ftps3_public.name}.csr"
+  source = "${aws_route53_record.ftps3_public.name}.csr"
+  etag   = "${md5(file("${aws_route53_record.ftps3_public.name}.csr"))}"
 }
 
 data "aws_iam_policy_document" "app_acme" {

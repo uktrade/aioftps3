@@ -39,50 +39,57 @@ FilePath = namedtuple('FilePath', [
 ])
 
 
-def acme_ssl_context_manager(logger):
-    ssl_context = None
+async def acme_ssl_context_manager(logger, s3_context, route_53_context, acme_context,
+                                   get_domain, domains, local_path):
+    ssl_contexts = {}
 
-    def get_context():
-        return ssl_context
+    def get_context(sock):
+        return ssl_contexts[get_domain(sock)]
 
-    def _load_context(logger, ssl_key, ssl_crt):
-        nonlocal ssl_context
+    def _load_context(logger, domain, ssl_key, ssl_crt):
         with logged(logger, 'Loading context %s %s', [ssl_key.local, ssl_crt.local]):
             ssl_context = SSLContext(PROTOCOL_TLSv1_2)
             ssl_context.load_cert_chain(ssl_crt.local, keyfile=ssl_key.local)
+            ssl_contexts[domain] = ssl_context
 
-    async def init_context(s3_context, route_53_context, acme_context, domain, local_path):
-        account_key = FilePath('account.key', f'{local_path}/account.key')
-        ssl_key = FilePath('ssl.key', f'{local_path}/ssl.key')
-        ssl_csr = FilePath('ssl.csr', f'{local_path}/ssl.csr')
-        ssl_crt = FilePath('ssl.crt', f'{local_path}/ssl.crt')
+    account_key = FilePath('account.key', f'{local_path}/account.key')
+    domains_paths = [
+        (domain, {
+            'key': FilePath(f'{domain}.key', f'{local_path}/{domain}.key'),
+            'csr': FilePath(f'{domain}.csr', f'{local_path}/{domain}.csr'),
+            'crt': FilePath(f'{domain}.crt', f'{local_path}/{domain}.crt'),
+        }) for domain in domains
+    ]
+    await _fetch_acme_objects(logger, s3_context, account_key, domains_paths)
 
-        await _fetch_acme_objects(logger, s3_context, account_key, ssl_key, ssl_csr, ssl_crt)
+    async def renew_if_necessary(renew_logger):
+        for domain, paths in domains_paths:
+            if await _should_renew(renew_logger, paths['crt'].local):
+                await _renew(renew_logger, s3_context, route_53_context, acme_context,
+                             account_key, domain, paths['csr'], paths['crt'])
+            _load_context(renew_logger, domain, paths['key'], paths['crt'])
 
-        async def renew_if_necessary(renew_logger):
-            if not await _should_renew(renew_logger, ssl_crt.local):
-                return
-
-            await _renew(renew_logger, s3_context, route_53_context, acme_context, account_key,
-                         domain, ssl_csr, ssl_crt)
-            _load_context(renew_logger, ssl_key, ssl_crt)
-
-        await renew_if_necessary(logger)
-        _load_context(logger, ssl_key, ssl_crt)
-
-        return _random_cron(logger, renew_if_necessary)
-
-    return init_context, get_context
+    await renew_if_necessary(logger)
+    return _random_cron(logger, renew_if_necessary), get_context
 
 
-async def _fetch_acme_objects(logger, s3_context, account_key, ssl_key, ssl_csr, ssl_crt):
+async def _fetch_acme_objects(logger, s3_context, account_key, domains_paths):
     with logged(logger, 'Fetching keys and certs from S3', []):
-        responses = [
-            await _get_object_and_save(logger, s3_context, remote_key, local_path)
-            for remote_key, local_path in [account_key, ssl_key, ssl_csr, ssl_crt]
-        ]
-        for response in responses[:3]:
+        response = await _get_object_and_save(
+            logger, s3_context, account_key.remote, account_key.local)
+        response.raise_for_status()
+
+        for _, paths in domains_paths:
+            key = paths['key']
+            response = await _get_object_and_save(logger, s3_context, key.remote, key.local)
             response.raise_for_status()
+            csr = paths['csr']
+            response = await _get_object_and_save(logger, s3_context, csr.remote, csr.local)
+            response.raise_for_status()
+
+            # No raise_for_status: we might not yet have generated a certificate
+            crt = csr = paths['crt']
+            await _get_object_and_save(logger, s3_context, crt.remote, crt.local)
 
 
 async def _renew(logger, s3_context, route_53_context, acme_context, account_key,

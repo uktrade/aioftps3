@@ -163,7 +163,7 @@ async def shutdown_socket(loop, sock):
 
 
 def ssl_get_socket(get_ssl_context, sock):
-    return get_ssl_context().wrap_socket(sock, server_side=True, do_handshake_on_connect=False)
+    return get_ssl_context(sock).wrap_socket(sock, server_side=True, do_handshake_on_connect=False)
 
 
 def ssl_complete_handshake(loop, ssl_sock):

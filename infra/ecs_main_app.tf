@@ -123,9 +123,12 @@ data "aws_iam_policy_document" "app_task" {
 
     resources = [
       "${aws_s3_bucket.app_acme.arn}/account.key",
-      "${aws_s3_bucket.app_acme.arn}/ssl.key",
-      "${aws_s3_bucket.app_acme.arn}/ssl.csr",
-      "${aws_s3_bucket.app_acme.arn}/ssl.crt",
+      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_public.name}.key",
+      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_public.name}.csr",
+      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_public.name}.crt",
+      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_private.name}.key",
+      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_private.name}.csr",
+      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_private.name}.crt",
     ]
   }
 
@@ -135,7 +138,8 @@ data "aws_iam_policy_document" "app_task" {
     ]
 
     resources = [
-      "${aws_s3_bucket.app_acme.arn}/ssl.crt",
+      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_public.name}.crt",
+      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_private.name}.crt",
     ]
   }
 
@@ -193,9 +197,9 @@ data "template_file" "app_container_definitions" {
     ftp_data_ports_count   = "${var.ftp_data_ports_count}"
 
     ftp_data_cidr_to_domains__1__cidr = "${aws_subnet.public.cidr_block}"
-    ftp_data_cidr_to_domains__1__domain = "${aws_lb.app_public.dns_name}"
+    ftp_data_cidr_to_domains__1__domain = "${aws_route53_record.ftps3_public.name}"
     ftp_data_cidr_to_domains__2__cidr = "${aws_subnet.private.cidr_block}"
-    ftp_data_cidr_to_domains__2__domain = "${aws_lb.app_private.dns_name}"
+    ftp_data_cidr_to_domains__2__domain = "${aws_route53_record.ftps3_private.name}"
 
     healthcheck_port = "${var.healthcheck_port}"
   }
