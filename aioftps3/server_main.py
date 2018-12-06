@@ -14,9 +14,12 @@ from aioftps3.server import (
     on_client_connect,
 )
 from aioftps3.server_acme_route53 import (
-    acme_context_manager,
+    acme_ssl_context_manager,
+    AcmeContext,
+    Route53Context,
 )
 from aioftps3.server_logger import (
+    get_child_logger,
     get_logger_with_context,
 )
 from aioftps3.server_s3 import (
@@ -53,7 +56,7 @@ async def cancel_client_tasks(client_tasks):
         await asyncio.sleep(0)
 
 
-async def async_main(loop, environ, logger, init_ssl_context, get_ssl_context, listening):
+async def async_main(loop, environ, logger, listening):
     env = normalise_environment(environ)
     logger_with_context = get_logger_with_context(logger, 'ftps3')
 
@@ -177,7 +180,22 @@ async def async_main(loop, environ, logger, init_ssl_context, get_ssl_context, l
         dir_suffix=None,
     )
     acme_s3_context = get_s3_context(session, credentials, acme_bucket)
-    await init_ssl_context(env['HOME'], acme_s3_context)
+    acme_route53_context = Route53Context(
+        session=session,
+        credentials=credentials,
+        host=env['AWS_ROUTE_53']['HOST'],
+        region=env['AWS_ROUTE_53']['REGION'],
+        verify_certs=env['AWS_ROUTE_53']['VERIFY_CERTS'] == 'true',
+        zone_id=env['AWS_ROUTE_53']['ZONE_ID'],
+    )
+    acme_logger = get_child_logger(logger_with_context, 'acme')
+    init_ssl_context, get_ssl_context = acme_ssl_context_manager(acme_logger)
+    acme_context = AcmeContext(session=session, directory_url=env['ACME_DIRECTORY'])
+    domain = data_cidrs[0]['DOMAIN']
+
+    renew_cron = await init_ssl_context(
+        acme_s3_context, acme_route53_context, acme_context, domain, env['ACME_PATH'])
+    renew_cron_task = loop.create_task(renew_cron)
 
     def on_listening(_):
         listening.set()
@@ -190,7 +208,7 @@ async def async_main(loop, environ, logger, init_ssl_context, get_ssl_context, l
         await server(logger_with_context, loop, get_ssl_context, command_port, on_listening,
                      _on_client_connect, cancel_client_tasks)
     except asyncio.CancelledError:
-        pass
+        renew_cron_task.cancel()
     except BaseException:
         logger_with_context.exception('Server exception')
     finally:
@@ -238,10 +256,6 @@ async def healthcheck(loop, logger):
 def main():
     loop = asyncio.get_event_loop()
 
-    acme_logger = logging.getLogger('acme')
-    init_ssl_context, get_ssl_context, refresh_cron = acme_context_manager(acme_logger)
-    loop.create_task(refresh_cron())
-
     healthcheck_logger = logging.getLogger('healthcheck')
     healthcheck_logger.setLevel(logging.WARNING)
     loop.create_task(healthcheck(loop, healthcheck_logger))
@@ -254,8 +268,7 @@ def main():
     logger.addHandler(handler)
 
     listening = asyncio.Event()
-    main_task = loop.create_task(async_main(loop, os.environ, logger, init_ssl_context,
-                                            get_ssl_context, listening))
+    main_task = loop.create_task(async_main(loop, os.environ, logger, listening))
     loop.add_signal_handler(signal.SIGINT, main_task.cancel)
     loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
 

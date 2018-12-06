@@ -71,6 +71,27 @@ resource "aws_s3_bucket" "app_acme" {
   }
 }
 
+resource "aws_s3_bucket_object" "acme_account_key" {
+  bucket = "${aws_s3_bucket.app_acme.bucket}"
+  key    = "account.key"
+  source = "account.key"
+  etag   = "${md5(file("account.key"))}"
+}
+
+resource "aws_s3_bucket_object" "acme_ssl_key" {
+  bucket = "${aws_s3_bucket.app_acme.bucket}"
+  key    = "ssl.key"
+  source = "ssl.key"
+  etag   = "${md5(file("ssl.key"))}"
+}
+
+resource "aws_s3_bucket_object" "acme_ssl_csr" {
+  bucket = "${aws_s3_bucket.app_acme.bucket}"
+  key    = "ssl.csr"
+  source = "ssl.csr"
+  etag   = "${md5(file("ssl.csr"))}"
+}
+
 data "aws_iam_policy_document" "app_acme" {
   statement {
     effect = "Deny"
