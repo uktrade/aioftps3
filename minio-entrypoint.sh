@@ -9,10 +9,10 @@ openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 -subj /CN=selfsigned \
 
 openssl genrsa 4096 > /test-data/my-bucket-acme/account.key
 openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 -subj /CN=selfsigned \
-    -keyout /test-data/my-bucket-acme/ssl.key \
-    -out /test-data/my-bucket-acme/ssl.crt
+    -keyout /test-data/my-bucket-acme/127.0.0.1.key \
+    -out /test-data/my-bucket-acme/127.0.0.1.crt
 
-openssl req -new -sha256 -key /test-data/my-bucket-acme/ssl.key -subj /CN=some-domain \
-	-out /test-data/my-bucket-acme/ssl.csr
+openssl req -new -sha256 -key /test-data/my-bucket-acme/127.0.0.1.key -subj /CN=some-domain \
+	-out /test-data/my-bucket-acme/127.0.0.1.csr
 
 /usr/bin/docker-entrypoint.sh -- "$@"
