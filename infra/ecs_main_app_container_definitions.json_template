@@ -40,15 +40,43 @@
     },
     {
       "name": "AWS_S3_ACME_BUCKET__REGION",
-      "value": "${aws_s3_acme_bucket_host}"
+      "value": "${aws_s3_acme_bucket_region}"
     },
     {
       "name": "AWS_S3_ACME_BUCKET__HOST",
-      "value": "${aws_s3_acme_bucket_name}"
+      "value": "${aws_s3_acme_bucket_host}"
     },
     {
       "name": "AWS_S3_ACME_BUCKET__NAME",
-      "value": "${aws_s3_acme_bucket_region}"
+      "value": "${aws_s3_acme_bucket_name}"
+    },
+    {
+      "name": "AWS_S3_ACME_BUCKET__VERIFY_CERTS",
+      "value": "true"
+    },
+    {
+      "name": "AWS_ROUTE_53__HOST",
+      "value": "route53.amazonaws.com"
+    },
+    {
+      "name": "AWS_ROUTE_53__REGION",
+      "value": "us-east-1"
+    },
+    {
+      "name": "AWS_ROUTE_53__VERIFY_CERTS",
+      "value": "true"
+    },
+    {
+      "name": "AWS_ROUTE_53__ZONE_ID",
+      "value": "${aws_route_53__zone_id}"
+    },
+    {
+      "name": "ACME_DIRECTORY",
+      "value": "https://acme-v02.api.letsencrypt.org/directory"
+    },
+    {
+      "name": "ACME_PATH",
+      "value": "/home/ftps"
     },
     {
       "name": "FTP_USERS__0__LOGIN",

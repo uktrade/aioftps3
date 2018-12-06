@@ -17,9 +17,6 @@ import unittest
 from aioftps3.server_main import (
     async_main,
 )
-from aioftps3.server_acme_route53 import (
-    acme_context_manager,
-)
 
 
 def async_test(func):
@@ -50,12 +47,8 @@ class TestAioFtpS3(unittest.TestCase):
         logger.handlers = []
         logger.addHandler(handler)
 
-        acme_logger = logging.getLogger('acme')
-        init_ssl_context, get_ssl_context, _ = acme_context_manager(acme_logger)
-
         listening = asyncio.Event()
-        server = loop.create_task(async_main(loop, env(), logger, init_ssl_context,
-                                             get_ssl_context, listening))
+        server = loop.create_task(async_main(loop, env(), logger, listening))
         await listening.wait()
 
         def delete_everything(ftp):
@@ -414,6 +407,12 @@ def env():
         'AWS_S3_ACME_BUCKET__HOST': 'localhost:9000',
         'AWS_S3_ACME_BUCKET__NAME': 'my-bucket-acme',
         'AWS_S3_ACME_BUCKET__VERIFY_CERTS': 'false',
+        'AWS_ROUTE_53__HOST': 'untested',
+        'AWS_ROUTE_53__REGION': 'untested',
+        'AWS_ROUTE_53__VERIFY_CERTS': 'untested',
+        'AWS_ROUTE_53__ZONE_ID': 'untested',
+        'ACME_DIRECTORY': 'untested',
+        'ACME_PATH': os.environ['PWD'],
         'FTP_USERS__1__LOGIN': 'my-user',
         'FTP_USERS__1__PASSWORD_HASHED': 'N3HmktqTFxH6RArbScmnwQH3/S3Ow593NFdSVrftp2M=',
         'FTP_USERS__1__PASSWORD_SALT':
@@ -424,7 +423,6 @@ def env():
         'FTP_DATA_CIDR_TO_DOMAINS__1__CIDR': '0.0.0.0/0',
         'FTP_DATA_CIDR_TO_DOMAINS__1__DOMAIN': '127.0.0.1',
         'HEALTHCHECK_PORT': '8022',
-        'HOME': os.environ['HOME'],
     }
 
 

@@ -115,6 +115,49 @@ data "aws_iam_policy_document" "app_task" {
       "${aws_s3_bucket.app.arn}/*",
     ]
   }
+
+  statement {
+    actions = [
+      "s3:GetObject",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.app_acme.arn}/account.key",
+      "${aws_s3_bucket.app_acme.arn}/ssl.key",
+      "${aws_s3_bucket.app_acme.arn}/ssl.csr",
+      "${aws_s3_bucket.app_acme.arn}/ssl.crt",
+    ]
+  }
+
+  statement {
+    actions = [
+      "s3:PutObject",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.app_acme.arn}/ssl.crt",
+    ]
+  }
+
+  statement {
+    actions = [
+      "route53:ChangeResourceRecordSets",
+    ]
+
+    resources = [
+      "arn:aws:route53:::hostedzone/${data.aws_route53_zone.main.zone_id}",
+    ]
+  }
+
+  statement {
+    actions = [
+      "route53:GetChange",
+    ]
+
+    resources = [
+      "*",
+    ]
+  }
 }
 
 data "template_file" "app_container_definitions" {
@@ -137,6 +180,8 @@ data "template_file" "app_container_definitions" {
     aws_s3_acme_bucket_host    = "s3-${aws_s3_bucket.app_acme.region}.amazonaws.com"
     aws_s3_acme_bucket_name    = "${aws_s3_bucket.app_acme.id}"
     aws_s3_acme_bucket_region  = "${aws_s3_bucket.app_acme.region}"
+
+    aws_route_53__zone_id = "${data.aws_route53_zone.main.zone_id}"
 
     healthcheck_ftp_user            = "${local.healthcheck_ftp_user}"
     healthcheck_ftp_password_hashed = "${var.healthcheck_ftp_password_hashed}"
