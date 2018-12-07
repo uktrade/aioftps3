@@ -1,6 +1,5 @@
 import asyncio
 from collections import (
-    deque,
     namedtuple,
 )
 from contextlib import (
@@ -16,6 +15,8 @@ import re
 import urllib
 import weakref
 import xml.etree.ElementTree as ET
+
+from fifolock import FifoLock
 
 from aioftps3.server_logger import (
     logged,
@@ -697,83 +698,16 @@ def _aws_sig_v4_headers(access_key_id, secret_access_key, pre_auth_headers,
     }
 
 
-class _ReadWaiter(asyncio.Future):
-    pass
+class Read(asyncio.Future):
+    @staticmethod
+    def is_compatible(holds):
+        return not holds[Write]
 
 
-class _WriteWaiter(asyncio.Future):
-    pass
-
-
-class _ReadWriteLock():
-    # Locks are acquired strictly in the order requested. This is different
-    # to aio-libs/aiorwlock, which does not allow readers to acquire if
-    # there are any waiting writers, which can starve readers
-
-    def __init__(self):
-        self._waiters = deque()
-        self._reads_held = 0
-        self._write_held = False
-
-    def _pop_queued_waiters(self, waiter_type):
-        while True:
-            correct_type = self._waiters and isinstance(self._waiters[0], waiter_type)
-            cancelled = self._waiters and self._waiters[0].cancelled()
-
-            if correct_type or cancelled:
-                waiter = self._waiters.popleft()
-
-            if correct_type and not cancelled:
-                yield waiter
-
-            if not correct_type and not cancelled:
-                break
-
-    def _resolve_queued_waiters(self):
-        if not self._write_held:
-            for waiter in self._pop_queued_waiters(_ReadWaiter):
-                self._reads_held += 1
-                waiter.set_result(None)
-
-        if not self._write_held and not self._reads_held:
-            for waiter in self._pop_queued_waiters(_WriteWaiter):
-                self._write_held = True
-                waiter.set_result(None)
-                break
-
-    def _on_read_release(self):
-        self._reads_held -= 1
-
-    def _on_write_release(self):
-        self._write_held = False
-
-    @asynccontextmanager
-    async def _acquire(self, waiter_type, on_release):
-        waiter = waiter_type()
-        self._waiters.append(waiter)
-        self._resolve_queued_waiters()
-
-        try:
-            await waiter
-        except asyncio.CancelledError:
-            self._resolve_queued_waiters()
-            raise
-
-        try:
-            yield
-        finally:
-            on_release()
-            self._resolve_queued_waiters()
-
-    @asynccontextmanager
-    async def read(self):
-        async with self._acquire(_ReadWaiter, self._on_read_release):
-            yield
-
-    @asynccontextmanager
-    async def write(self):
-        async with self._acquire(_WriteWaiter, self._on_write_release):
-            yield
+class Write(asyncio.Future):
+    @staticmethod
+    def is_compatible(holds):
+        return not holds[Read] and not holds[Write]
 
 
 class _PathLock():
@@ -790,27 +724,26 @@ class _PathLock():
     def _sort_key(path_lock):
         return len(path_lock[0].parents), path_lock[0].as_posix()
 
-    def _with_locks(self, paths, locker):
+    def _with_locks(self, paths, mode):
         return [
-            (path, self._locks.setdefault(path, default=_ReadWriteLock()), locker)
+            (path, self._locks.setdefault(path, default=FifoLock()), mode)
             for path in paths
         ]
 
     @asynccontextmanager
     async def __call__(self, logger, paths):
         writable_paths = set(paths)
-        writable_locks = self._with_locks(writable_paths, lambda lock: (lock.write, 'write'))
+        writable_locks = self._with_locks(writable_paths, Write)
 
         ancestor_paths = _flatten(path.parents for path in paths)
         readable_paths = set(ancestor_paths) - writable_paths
-        readable_locks = self._with_locks(readable_paths, lambda lock: (lock.read, 'read'))
+        readable_locks = self._with_locks(readable_paths, Read)
 
         sorted_locks = sorted(readable_locks + writable_locks, key=self._sort_key)
         async with AsyncExitStack() as stack:
-            for path, lock, lock_func in sorted_locks:
-                locker, lock_type = lock_func(lock)
-                with logged(logger, 'Locking %s on %s', [lock_type, path]):
-                    await stack.enter_async_context(locker())
+            for path, lock, mode in sorted_locks:
+                with logged(logger, 'Locking %s on %s', [mode, path]):
+                    await stack.enter_async_context(lock(mode))
 
             yield
 
