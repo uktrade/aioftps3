@@ -9,6 +9,7 @@ aiohttp==3.4.4
 async-timeout==3.0.1      # via aiohttp
 attrs==18.2.0             # via aiohttp
 chardet==3.0.4            # via aiohttp
+fifolock==0.0.18
 idna==2.7                 # via yarl
 multidict==4.4.2          # via aiohttp, yarl
 pycares==2.3.0            # via aiodns
