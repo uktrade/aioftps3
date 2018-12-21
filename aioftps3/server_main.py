@@ -13,10 +13,12 @@ import aiohttp
 from aioftps3.server import (
     on_client_connect,
 )
+from aioftps3.server_route53 import (
+    Route53Context,
+)
 from aioftps3.server_acme_route53 import (
     acme_ssl_context_manager,
     AcmeContext,
-    Route53Context,
 )
 from aioftps3.server_logger import (
     get_child_logger,
