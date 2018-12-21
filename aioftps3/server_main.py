@@ -186,7 +186,8 @@ async def async_main(loop, environ, logger, listening):
         zone_id=env['AWS_ROUTE_53']['ZONE_ID'],
     )
     metadata_url = env['ECS_CONTAINER_METADATA_URI'] + '/task'
-    await route_53_upsert_task_private_ip(route53_logger, route53_context, metadata_url)
+    domain = env['AWS_ROUTE_53']['PRIVATE_DOMAIN']
+    await route_53_upsert_task_private_ip(route53_logger, route53_context, metadata_url, domain)
 
     acme_bucket = get_s3_bucket(
         region=env['AWS_S3_ACME_BUCKET']['REGION'],

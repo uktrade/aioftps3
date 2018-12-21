@@ -20,6 +20,7 @@ jobs:
       - run:
           name: Run tests
           command: |
+            openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 -subj /CN=selfsigned -keyout route53.key -out route53.crt
             ./cc-test-reporter before-build
             ./tests-with-coverage.sh
             coverage xml

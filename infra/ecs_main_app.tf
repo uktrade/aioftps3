@@ -126,9 +126,9 @@ data "aws_iam_policy_document" "app_task" {
       "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_public.name}.key",
       "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_public.name}.csr",
       "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_public.name}.crt",
-      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_private.name}.key",
-      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_private.name}.csr",
-      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_private.name}.crt",
+      "${aws_s3_bucket.app_acme.arn}/${var.app_internal_host}.key",
+      "${aws_s3_bucket.app_acme.arn}/${var.app_internal_host}.csr",
+      "${aws_s3_bucket.app_acme.arn}/${var.app_internal_host}.crt",
     ]
   }
 
@@ -139,7 +139,7 @@ data "aws_iam_policy_document" "app_task" {
 
     resources = [
       "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_public.name}.crt",
-      "${aws_s3_bucket.app_acme.arn}/${aws_route53_record.ftps3_private.name}.crt",
+      "${aws_s3_bucket.app_acme.arn}/${var.app_internal_host}.crt",
     ]
   }
 
@@ -186,6 +186,7 @@ data "template_file" "app_container_definitions" {
     aws_s3_acme_bucket_region  = "${aws_s3_bucket.app_acme.region}"
 
     aws_route_53__zone_id = "${data.aws_route53_zone.main.zone_id}"
+    aws_route_53__private_domain = "${var.app_internal_host}"
 
     healthcheck_ftp_user            = "${local.healthcheck_ftp_user}"
     healthcheck_ftp_password_hashed = "${var.healthcheck_ftp_password_hashed}"
@@ -198,8 +199,8 @@ data "template_file" "app_container_definitions" {
 
     ftp_data_cidr_to_domains__1__cidr = "${aws_subnet.public.cidr_block}"
     ftp_data_cidr_to_domains__1__domain = "${aws_route53_record.ftps3_public.name}"
-    ftp_data_cidr_to_domains__2__cidr = "${aws_subnet.private.cidr_block}"
-    ftp_data_cidr_to_domains__2__domain = "${aws_route53_record.ftps3_private.name}"
+    ftp_data_cidr_to_domains__2__cidr = "${data.aws_vpc_peering_connection.private_subnet.cidr_block}"
+    ftp_data_cidr_to_domains__2__domain = "${var.app_internal_host}"
 
     healthcheck_port = "${var.healthcheck_port}"
   }
