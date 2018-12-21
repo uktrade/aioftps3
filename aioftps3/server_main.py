@@ -73,7 +73,7 @@ async def async_main(loop, environ, logger, listening):
             secret_access_key=env['AWS_SECRET_ACCESS_KEY'],
         ),
         'ecs_role': lambda: get_ecs_role_credentials(
-            url='http://169.254.170.2/' + env['AWS_CONTAINER_CREDENTIALS_RELATIVE_URI'],
+            url='http://169.254.170.2' + env['AWS_CONTAINER_CREDENTIALS_RELATIVE_URI'],
         ),
     }
     credentials = auth_mechanisms[env['AWS_AUTH_MECHANISM']]()
