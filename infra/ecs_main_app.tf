@@ -8,7 +8,7 @@ resource "aws_ecs_service" "app" {
 
   network_configuration {
     subnets         = ["${aws_subnet.app.id}"]
-    assign_public_ip = true
+    assign_public_ip = false
     security_groups = ["${aws_security_group.app_service.id}"]
   }
 }
