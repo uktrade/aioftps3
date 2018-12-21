@@ -15,6 +15,7 @@ from aioftps3.server import (
 )
 from aioftps3.server_route53 import (
     Route53Context,
+    route_53_upsert_task_private_ip,
 )
 from aioftps3.server_acme_route53 import (
     acme_ssl_context_manager,
@@ -175,6 +176,18 @@ async def async_main(loop, environ, logger, listening):
 
         return command_subnet_cidr == data_subnet_cidr
 
+    route53_logger = get_child_logger(logger_with_context, 'route53')
+    route53_context = Route53Context(
+        session=session,
+        credentials=credentials,
+        host=env['AWS_ROUTE_53']['HOST'],
+        region=env['AWS_ROUTE_53']['REGION'],
+        verify_certs=env['AWS_ROUTE_53']['VERIFY_CERTS'] == 'true',
+        zone_id=env['AWS_ROUTE_53']['ZONE_ID'],
+    )
+    metadata_url = env['ECS_CONTAINER_METADATA_URI'] + '/task'
+    await route_53_upsert_task_private_ip(route53_logger, route53_context, metadata_url)
+
     acme_bucket = get_s3_bucket(
         region=env['AWS_S3_ACME_BUCKET']['REGION'],
         host=env['AWS_S3_ACME_BUCKET']['HOST'],
@@ -183,19 +196,11 @@ async def async_main(loop, environ, logger, listening):
         dir_suffix=None,
     )
     acme_s3_context = get_s3_context(session, credentials, acme_bucket)
-    acme_route53_context = Route53Context(
-        session=session,
-        credentials=credentials,
-        host=env['AWS_ROUTE_53']['HOST'],
-        region=env['AWS_ROUTE_53']['REGION'],
-        verify_certs=env['AWS_ROUTE_53']['VERIFY_CERTS'] == 'true',
-        zone_id=env['AWS_ROUTE_53']['ZONE_ID'],
-    )
     acme_logger = get_child_logger(logger_with_context, 'acme')
     acme_context = AcmeContext(session=session, directory_url=env['ACME_DIRECTORY'])
     domains = [data_cidr['DOMAIN'] for data_cidr in data_cidrs]
     renew_cron, get_ssl_context = await acme_ssl_context_manager(
-        acme_logger, acme_s3_context, acme_route53_context, acme_context, get_domain,
+        acme_logger, acme_s3_context, route53_context, acme_context, get_domain,
         domains, env['ACME_PATH'])
 
     renew_cron_task = loop.create_task(renew_cron)

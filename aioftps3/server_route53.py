@@ -18,6 +18,12 @@ Route53Context = namedtuple('Route53Context', [
 ])
 
 
+async def route_53_upsert_task_private_ip(logger, context, metadata_url):
+    async with context.session.request('GET', metadata_url) as response:
+        logger.debug(await response.read())
+        response.raise_for_status()
+
+
 async def route_53_upsert_rrset(logger, context, upsert_payload):
     with logged(logger, 'Upserting', []):
         upsert_path = f'/2013-04-01/hostedzone/{context.zone_id}/rrset/'

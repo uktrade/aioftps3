@@ -14,6 +14,10 @@ import re
 import sys
 import unittest
 
+from aiohttp import (
+    web,
+)
+
 from aioftps3.server_main import (
     async_main,
 )
@@ -47,6 +51,16 @@ class TestAioFtpS3(unittest.TestCase):
         logger.handlers = []
         logger.addHandler(handler)
 
+        async def metadata_task_route(_):
+            return web.Response()
+        metadata_app = web.Application()
+        metadata_app.add_routes([web.get('/metadata/task', metadata_task_route)])
+
+        metadata_runner = web.AppRunner(metadata_app)
+        await metadata_runner.setup()
+        metadata_site = web.TCPSite(metadata_runner, '0.0.0.0', 8080)
+        await metadata_site.start()
+
         listening = asyncio.Event()
         server = loop.create_task(async_main(loop, env(), logger, listening))
         await listening.wait()
@@ -62,6 +76,7 @@ class TestAioFtpS3(unittest.TestCase):
 
         async def cancel_server():
             server.cancel()
+            await metadata_runner.cleanup()
             await asyncio.sleep(0)
 
         self.add_async_cleanup(loop, cancel_server)
@@ -413,6 +428,7 @@ def env():
         'AWS_ROUTE_53__ZONE_ID': 'untested',
         'ACME_DIRECTORY': 'untested',
         'ACME_PATH': os.environ['PWD'],
+        'ECS_CONTAINER_METADATA_URI': 'http://127.0.0.1:8080/metadata',
         'FTP_USERS__1__LOGIN': 'my-user',
         'FTP_USERS__1__PASSWORD_HASHED': 'N3HmktqTFxH6RArbScmnwQH3/S3Ow593NFdSVrftp2M=',
         'FTP_USERS__1__PASSWORD_SALT':
