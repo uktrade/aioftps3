@@ -352,7 +352,11 @@ async def _route_53_upsert_txt(logger, context, txt_contents, txt_domain):
             '</Change></Changes></ChangeBatch>'
             '</ChangeResourceRecordSetsRequest>'
         ).encode('utf-8')
+        await _route_53_upsert_rrset(logger, context, upsert_payload)
 
+
+async def _route_53_upsert_rrset(logger, context, upsert_payload):
+    with logged(logger, 'Upserting', []):
         upsert_path = f'/2013-04-01/hostedzone/{context.zone_id}/rrset/'
         upsert_body = await _route_53_request(logger, context, 'POST', upsert_path, upsert_payload)
         change_id = re.search(b'<Id>([^<]+)</Id>', upsert_body)[1].decode('utf-8')
