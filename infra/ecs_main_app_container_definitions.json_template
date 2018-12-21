@@ -71,6 +71,10 @@
       "value": "${aws_route_53__zone_id}"
     },
     {
+      "name": "AWS_ROUTE_53__PRIVATE_DOMAIN",
+      "value": "${aws_route_53__private_domain}"
+    },
+    {
       "name": "ACME_DIRECTORY",
       "value": "https://acme-v02.api.letsencrypt.org/directory"
     },

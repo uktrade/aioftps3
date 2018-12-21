@@ -11,6 +11,7 @@ import logging
 import os
 import random
 import re
+import ssl
 import sys
 import unittest
 
@@ -52,7 +53,7 @@ class TestAioFtpS3(unittest.TestCase):
         logger.addHandler(handler)
 
         async def metadata_task_route(_):
-            return web.Response()
+            return web.Response(text='{"Containers":[{"Networks":[{"IPv4Addresses":[""]}]}]}')
         metadata_app = web.Application()
         metadata_app.add_routes([web.get('/metadata/task', metadata_task_route)])
 
@@ -60,6 +61,23 @@ class TestAioFtpS3(unittest.TestCase):
         await metadata_runner.setup()
         metadata_site = web.TCPSite(metadata_runner, '0.0.0.0', 8080)
         await metadata_site.start()
+
+        async def route53_rrset(_):
+            return web.Response(text='<Id>/the-id</Id>')
+
+        async def route53_record(_):
+            return web.Response(text='<Status>Something</Status>')
+        route53_app = web.Application()
+        route53_app.add_routes(
+            [web.post('/2013-04-01/hostedzone/the-zone-id/rrset/', route53_rrset)])
+        route53_app.add_routes([web.get('/2013-04-01/the-id', route53_record)])
+
+        route53_runner = web.AppRunner(route53_app)
+        await route53_runner.setup()
+        ssl_context = ssl.SSLContext()
+        ssl_context.load_cert_chain('route53.crt', 'route53.key')
+        route53_site = web.TCPSite(route53_runner, '0.0.0.0', 8081, ssl_context=ssl_context)
+        await route53_site.start()
 
         listening = asyncio.Event()
         server = loop.create_task(async_main(loop, env(), logger, listening))
@@ -77,6 +95,7 @@ class TestAioFtpS3(unittest.TestCase):
         async def cancel_server():
             server.cancel()
             await metadata_runner.cleanup()
+            await route53_runner.cleanup()
             await asyncio.sleep(0)
 
         self.add_async_cleanup(loop, cancel_server)
@@ -422,10 +441,11 @@ def env():
         'AWS_S3_ACME_BUCKET__HOST': 'localhost:9000',
         'AWS_S3_ACME_BUCKET__NAME': 'my-bucket-acme',
         'AWS_S3_ACME_BUCKET__VERIFY_CERTS': 'false',
-        'AWS_ROUTE_53__HOST': 'untested',
+        'AWS_ROUTE_53__HOST': 'localhost:8081',
+        'AWS_ROUTE_53__PRIVATE_DOMAIN': 'untested',
         'AWS_ROUTE_53__REGION': 'untested',
-        'AWS_ROUTE_53__VERIFY_CERTS': 'untested',
-        'AWS_ROUTE_53__ZONE_ID': 'untested',
+        'AWS_ROUTE_53__VERIFY_CERTS': 'false',
+        'AWS_ROUTE_53__ZONE_ID': 'the-zone-id',
         'ACME_DIRECTORY': 'untested',
         'ACME_PATH': os.environ['PWD'],
         'ECS_CONTAINER_METADATA_URI': 'http://127.0.0.1:8080/metadata',

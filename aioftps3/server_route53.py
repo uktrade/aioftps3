@@ -3,6 +3,7 @@ from collections import (
     namedtuple,
 )
 import hashlib
+import json
 import re
 
 from aioftps3.server_logger import (
@@ -18,10 +19,32 @@ Route53Context = namedtuple('Route53Context', [
 ])
 
 
-async def route_53_upsert_task_private_ip(logger, context, metadata_url):
+async def route_53_upsert_task_private_ip(logger, context, metadata_url, domain):
     async with context.session.request('GET', metadata_url) as response:
-        logger.debug(await response.read())
+        response_json = json.loads(await response.read())
         response.raise_for_status()
+
+    private_ip = response_json['Containers'][0]['Networks'][0]['IPv4Addresses'][0]
+
+    with logged(logger, 'Upserting A record %s %s', [domain, private_ip]):
+        namespace = 'https://route53.amazonaws.com/doc/2013-04-01/'
+        upsert_payload = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            f'<ChangeResourceRecordSetsRequest xmlns="{namespace}">'
+            '<ChangeBatch><Changes><Change>'
+            '<Action>UPSERT</Action>'
+            '<ResourceRecordSet>'
+            f'<Name>{domain}</Name>'
+            '<ResourceRecords><ResourceRecord>'
+            f'<Value>{private_ip}</Value>'
+            '</ResourceRecord></ResourceRecords>'
+            '<TTL>60</TTL>'
+            '<Type>A</Type>'
+            '</ResourceRecordSet>'
+            '</Change></Changes></ChangeBatch>'
+            '</ChangeResourceRecordSetsRequest>'
+        ).encode('utf-8')
+        await route_53_upsert_rrset(logger, context, upsert_payload)
 
 
 async def route_53_upsert_rrset(logger, context, upsert_payload):

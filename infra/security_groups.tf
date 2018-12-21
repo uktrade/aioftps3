@@ -8,13 +8,27 @@ resource "aws_security_group" "app_service" {
   }
 }
 
+# resource "aws_security_group_rule" "app_service_ingress_everything_from_everywhere" {
+#   description = "ingress-everything-from-everywhere"
+
+#   security_group_id = "${aws_security_group.app_service.id}"
+#   cidr_blocks       = [
+#     "0.0.0.0/0",
+#   ]
+
+#   type      = "ingress"
+#   from_port = "0"
+#   to_port   = "65535"
+#   protocol  = "tcp"
+# }
+
 resource "aws_security_group_rule" "app_service_ingress_command_from_nlbs" {
   description = "ingress-command-from-nlbs"
 
   security_group_id = "${aws_security_group.app_service.id}"
   cidr_blocks       = [
     "${aws_subnet.public.cidr_block}",
-    "${aws_subnet.private.cidr_block}",
+    "${data.aws_vpc_peering_connection.private_subnet.cidr_block}",
   ]
 
   type      = "ingress"
@@ -29,7 +43,7 @@ resource "aws_security_group_rule" "app_service_ingress_data_from_nlbs" {
   security_group_id = "${aws_security_group.app_service.id}"
   cidr_blocks       = [
     "${aws_subnet.public.cidr_block}",
-    "${aws_subnet.private.cidr_block}",
+    "${data.aws_vpc_peering_connection.private_subnet.cidr_block}",,
   ]
 
   type      = "ingress"
@@ -44,7 +58,6 @@ resource "aws_security_group_rule" "app_service_ingress_healthcheck_from_nlbs" {
   security_group_id = "${aws_security_group.app_service.id}"
   cidr_blocks       = [
     "${aws_subnet.public.cidr_block}",
-    "${aws_subnet.private.cidr_block}",
   ]
 
   type      = "ingress"

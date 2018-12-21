@@ -80,16 +80,16 @@ resource "aws_s3_bucket_object" "acme_account_key" {
 
 resource "aws_s3_bucket_object" "acme_private_ssl_key" {
   bucket = "${aws_s3_bucket.app_acme.bucket}"
-  key    = "${aws_route53_record.ftps3_private.name}.key"
-  source = "${aws_route53_record.ftps3_private.name}.key"
-  etag   = "${md5(file("${aws_route53_record.ftps3_private.name}.key"))}"
+  key    = "${var.app_internal_host}.key"
+  source = "${var.app_internal_host}.key"
+  etag   = "${md5(file("${var.app_internal_host}.key"))}"
 }
 
 resource "aws_s3_bucket_object" "acme_private_ssl_csr" {
   bucket = "${aws_s3_bucket.app_acme.bucket}"
-  key    = "${aws_route53_record.ftps3_private.name}.csr"
-  source = "${aws_route53_record.ftps3_private.name}.csr"
-  etag   = "${md5(file("${aws_route53_record.ftps3_private.name}.csr"))}"
+  key    = "${var.app_internal_host}.csr"
+  source = "${var.app_internal_host}.csr"
+  etag   = "${md5(file("${var.app_internal_host}.csr"))}"
 }
 
 resource "aws_s3_bucket_object" "acme_public_ssl_key" {

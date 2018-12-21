@@ -71,6 +71,12 @@ resource "aws_route_table" "app" {
   }
 }
 
+resource "aws_route" "vpc_peering_connection_app_subnet" {
+  route_table_id            = "${aws_route_table.app.id}"
+  vpc_peering_connection_id = "${data.aws_vpc_peering_connection.private_subnet.id}"
+  destination_cidr_block    = "${data.aws_vpc_peering_connection.private_subnet.cidr_block}"
+}
+
 resource "aws_route" "app_nat_gateway_ipv4" {
   route_table_id         = "${aws_route_table.app.id}"
   destination_cidr_block = "0.0.0.0/0"
@@ -80,41 +86,6 @@ resource "aws_route" "app_nat_gateway_ipv4" {
 resource "aws_route_table_association" "app" {
   subnet_id      = "${aws_subnet.app.id}"
   route_table_id = "${aws_route_table.app.id}"
-}
-
-resource "aws_subnet" "private" {
-  vpc_id     = "${data.aws_vpc.main.id}"
-  cidr_block = "${var.private_subnet_cidr}"
-
-  availability_zone = "${var.availability_zone}"
-
-  tags {
-    Name = "${var.name}-private-${var.availability_zone}"
-  }
-}
-
-resource "aws_route_table" "private" {
-  vpc_id = "${data.aws_vpc.main.id}"
-  tags {
-    Name = "${var.name}-private"
-  }
-}
-
-resource "aws_route_table_association" "private" {
-  subnet_id      = "${aws_subnet.private.id}"
-  route_table_id = "${aws_route_table.private.id}"
-}
-
-resource "aws_route" "private_nat_gateway_ipv4" {
-  route_table_id         = "${aws_route_table.private.id}"
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = "${data.aws_nat_gateway.main.id}"
-}
-
-resource "aws_route" "vpc_peering_connection_private_subnet" {
-  route_table_id            = "${aws_route_table.private.id}"
-  vpc_peering_connection_id = "${data.aws_vpc_peering_connection.private_subnet.id}"
-  destination_cidr_block    = "${data.aws_vpc_peering_connection.private_subnet.cidr_block}"
 }
 
 resource "aws_subnet" "healthcheck_private" {
