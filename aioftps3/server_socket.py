@@ -92,16 +92,11 @@ async def server(logger, loop, get_ssl_context, port, on_listening, client_handl
     except BaseException:
         logger.exception('Exception listening for socket')
     finally:
-        # Shutdown here and _not_ close. From testing, it looks like shutdown
-        # means the port can be listented to again immediately, and and the
-        # file descriptor is not released too soon, which would cause later
-        # connections using that file descriptor to not work properly
         try:
             sock.shutdown(SHUT_RDWR)
-        except BaseException:
-            # However, if shutting down fails, we should close explicitly to
-            # free up resources now
-            sock.close()
+        except OSError:
+            pass
+        sock.close()
 
 
 async def sock_accept(loop, sock, on_listening):
@@ -161,14 +156,15 @@ def ssl_get_socket(get_ssl_context, sock):
     return get_ssl_context(sock).wrap_socket(sock, server_side=True, do_handshake_on_connect=False)
 
 
-def ssl_complete_handshake(loop, ssl_sock):
+async def ssl_complete_handshake(loop, ssl_sock):
     fileno = ssl_sock.fileno()
     done = Future()
 
     def handshake():
         try:
             ssl_sock.do_handshake()
-            done.set_result(None)
+            if not done.cancelled():
+                done.set_result(None)
         except SSLWantReadError:
             loop.add_reader(fileno, handshake_with_reader)
         except SSLWantWriteError:
@@ -187,17 +183,25 @@ def ssl_complete_handshake(loop, ssl_sock):
 
     handshake()
 
+    try:
+        return await done
+    except CancelledError:
+        loop.remove_reader(fileno)
+        loop.remove_writer(fileno)
+        raise
+
     return done
 
 
-def ssl_unwrap_socket(loop, ssl_sock, original_sock):
+async def ssl_unwrap_socket(loop, ssl_sock, original_sock):
     fileno = ssl_sock.fileno()
     done = Future()
 
     def unwrap():
         try:
             sock = ssl_sock.unwrap()
-            done.set_result(sock)
+            if not done.cancelled():
+                done.set_result(sock)
         except SSLWantReadError:
             loop.add_reader(fileno, unwrap_with_reader)
         except SSLWantWriteError:
@@ -215,6 +219,13 @@ def ssl_unwrap_socket(loop, ssl_sock, original_sock):
         unwrap()
 
     unwrap()
+
+    try:
+        return await done
+    except CancelledError:
+        loop.remove_reader(fileno)
+        loop.remove_writer(fileno)
+        raise
 
     return done
 
