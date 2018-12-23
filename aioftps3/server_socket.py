@@ -106,15 +106,6 @@ async def server(logger, loop, get_ssl_context, port, on_listening, client_handl
 
 async def sock_accept(loop, sock, on_listening):
     fileno = sock.fileno()
-    try:
-        return await _sock_accept(loop, sock, on_listening)
-    except CancelledError:
-        loop.remove_reader(fileno)
-        raise
-
-
-def _sock_accept(loop, sock, on_listening):
-    fileno = sock.fileno()
     done = Future()
 
     def accept_without_reader():
@@ -148,7 +139,11 @@ def _sock_accept(loop, sock, on_listening):
 
     accept_without_reader()
 
-    return done
+    try:
+        return await done
+    except CancelledError:
+        loop.remove_reader(fileno)
+        raise
 
 
 async def shutdown_socket(loop, sock):
