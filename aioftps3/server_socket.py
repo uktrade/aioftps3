@@ -287,7 +287,7 @@ async def send(loop, get_sock, max_send_size, buf_memoryview):
         try:
             num_bytes = get_sock().send(buf_memoryview[:max_bytes])
 
-        except (SSLWantWriteError, BlockingIOError, InterruptedError):
+        except (SSLWantWriteError, BlockingIOError):
             loop.add_writer(fileno, write_with_writer)
 
         except BaseException as exception:
@@ -304,7 +304,7 @@ async def send(loop, get_sock, max_send_size, buf_memoryview):
         try:
             num_bytes = get_sock().send(buf_memoryview[:max_bytes])
 
-        except (SSLWantWriteError, BlockingIOError, InterruptedError):
+        except (SSLWantWriteError, BlockingIOError):
             pass
 
         except BaseException as exception:
@@ -339,7 +339,7 @@ async def recv(loop, get_sock, max_recv_size, buf_memoryview):
         try:
             num_bytes = get_sock().recv_into(buf_memoryview, max_bytes)
 
-        except (SSLWantReadError, BlockingIOError, InterruptedError):
+        except (SSLWantReadError, BlockingIOError):
             loop.add_reader(fileno, read_with_reader)
 
         except BaseException as exception:
@@ -356,7 +356,7 @@ async def recv(loop, get_sock, max_recv_size, buf_memoryview):
         try:
             num_bytes = get_sock().recv_into(buf_memoryview, max_bytes)
 
-        except (SSLWantReadError, BlockingIOError, InterruptedError):
+        except (SSLWantReadError, BlockingIOError):
             pass
 
         except BaseException as exception:
