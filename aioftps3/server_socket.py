@@ -280,15 +280,6 @@ async def recv_until_close(loop, get_sock, max_recv_size):
 
 async def send(loop, get_sock, max_send_size, buf_memoryview):
     fileno = get_sock().fileno()
-    try:
-        return await _send(loop, get_sock, max_send_size, buf_memoryview)
-    except CancelledError:
-        loop.remove_writer(fileno)
-        raise
-
-
-def _send(loop, get_sock, max_send_size, buf_memoryview):
-    fileno = get_sock().fileno()
     max_bytes = min(max_send_size, len(buf_memoryview))
     result = Future()
 
@@ -330,19 +321,16 @@ def _send(loop, get_sock, max_send_size, buf_memoryview):
 
     write_without_writer()
 
+    try:
+        return await result
+    except CancelledError:
+        loop.remove_writer(fileno)
+        raise
+
     return result
 
 
 async def recv(loop, get_sock, max_recv_size, buf_memoryview):
-    fileno = get_sock().fileno()
-    try:
-        return await _recv(loop, get_sock, max_recv_size, buf_memoryview)
-    except CancelledError:
-        loop.remove_reader(fileno)
-        raise
-
-
-def _recv(loop, get_sock, max_recv_size, buf_memoryview):
     fileno = get_sock().fileno()
     max_bytes = min(max_recv_size, len(buf_memoryview))
     result = Future()
@@ -385,4 +373,8 @@ def _recv(loop, get_sock, max_recv_size, buf_memoryview):
 
     read_without_reader()
 
-    return result
+    try:
+        return await result
+    except CancelledError:
+        loop.remove_reader(fileno)
+        raise
