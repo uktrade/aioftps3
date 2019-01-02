@@ -289,10 +289,9 @@ async def _rename(logger, context, rename_from, rename_to):
     if not from_exists:
         raise Exception('The source file does not exist')
 
-    # ... the target must not...
+    # ... but the target may or may not exist
     to_exists = await _exists(logger, context, rename_to)
-    if to_exists:
-        raise Exception('The target file already exists')
+    logger.debug('File %s exists: %s', to_exists)
 
     # ... we find the list of keys to rename from/to
 
