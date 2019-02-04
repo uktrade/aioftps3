@@ -83,6 +83,8 @@ resource "aws_lb_target_group_attachment" "app_public_command" {
   port              = "${var.ftp_command_port}"
   target_id         = "${lookup(data.null_data_source.app_ips.*.outputs[count.index], "ip")}"
   availability_zone = "${var.availability_zone}"
+
+  depends_on = ["aws_subnet.public"]
 }
 
 resource "aws_lb_target_group_attachment" "app_public_data" {
@@ -91,4 +93,6 @@ resource "aws_lb_target_group_attachment" "app_public_data" {
   port             = "${lookup(data.null_data_source.ftp_data_ports.*.outputs[count.index % var.ftp_data_ports_count], "port")}"
   target_id        = "${lookup(data.null_data_source.app_ips.*.outputs[count.index % var.app_subnet_hosts_count], "ip")}"
   availability_zone = "${var.availability_zone}"
+
+  depends_on = ["aws_subnet.public"]
 }
