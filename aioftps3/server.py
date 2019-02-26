@@ -148,7 +148,7 @@ async def on_client_connect(logger, loop, get_ssl_context, sock, get_data_ip, da
         await command_responses.put(b'234 TLS negotiation will follow.')
         await command_responses.join()
         with logged(logger, 'Performing TLS handshake', []):
-            ssl_sock = ssl_get_socket(get_ssl_context, sock)
+            ssl_sock = ssl_get_socket(logger, get_ssl_context, sock)
             await ssl_complete_handshake(loop, ssl_sock)
 
     async def command_syst(_):
@@ -326,7 +326,7 @@ async def on_client_connect(logger, loop, get_ssl_context, sock, get_data_ip, da
 
             try:
                 with logged(data_client_logger, 'Performing TLS handshake', []):
-                    ssl_data_sock = ssl_get_socket(get_ssl_context, data_sock)
+                    ssl_data_sock = ssl_get_socket(logger, get_ssl_context, data_sock)
                     await ssl_complete_handshake(loop, ssl_data_sock)
 
                 async with timeout(loop, DATA_COMMAND_TIMEOUT_SECONDS):

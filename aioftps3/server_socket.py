@@ -13,6 +13,9 @@ from socket import (
     socket,
 )
 from ssl import (
+    HAS_TLSv1_1,
+    HAS_TLSv1_2,
+    HAS_TLSv1_3,
     SSLWantReadError,
     SSLWantWriteError,
 )
@@ -152,7 +155,10 @@ async def shutdown_socket(loop, sock):
         pass
 
 
-def ssl_get_socket(get_ssl_context, sock):
+def ssl_get_socket(logger, get_ssl_context, sock):
+    logger.debug('HAS_TLSv1_1: %s', HAS_TLSv1_1)
+    logger.debug('HAS_TLSv1_2: %s', HAS_TLSv1_2)
+    logger.debug('HAS_TLSv1_3: %s', HAS_TLSv1_3)
     return get_ssl_context(sock).wrap_socket(sock, server_side=True, do_handshake_on_connect=False)
 
 
