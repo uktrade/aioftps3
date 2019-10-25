@@ -38,6 +38,7 @@ repos:
         - --max-returns=10
         - --ignore-imports=yes
         - --disable=attribute-defined-outside-init
+        - --disable=broad-except
         - --disable=duplicate-code
         - --disable=missing-docstring
         # https://github.com/PyCQA/pylint/issues/2440

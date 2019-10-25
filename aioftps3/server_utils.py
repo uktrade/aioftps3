@@ -75,8 +75,7 @@ async def timeout(loop, max_time):
     except asyncio.CancelledError:
         if not cancelling_due_to_timeout:
             raise
-        else:
-            raise Timeout()
+        raise Timeout()
     finally:
         handle.cancel()
 

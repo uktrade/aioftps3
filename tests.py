@@ -421,7 +421,7 @@ async def ftp_run(func, *args, loop, user, passwd):
             ftp.encoding = 'utf-8'
             ftp.connect(host='localhost', port=8021)
             ftp.login(user=user, passwd=passwd)
-            ftp.prot_p()
+            ftp.prot_p()  # pylint: disable=no-member
             return func(ftp, *args)
 
     return await loop.run_in_executor(None, task)

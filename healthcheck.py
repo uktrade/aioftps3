@@ -41,7 +41,7 @@ async def async_main(loop, logger, healthcheck_port, ftp_host, ftp_port, ftp_use
                 logger.debug('Connecting as %s...', ftp_user)
                 ftp.login(user=ftp_user, passwd=ftp_password)
                 logger.debug('Connecting as %s... (done)', ftp_user)
-                ftp.prot_p()
+                ftp.prot_p()  # pylint: disable=no-member
 
                 # In case the previous healthcheck died before we deleted the file
                 logger.debug('Fetching list...')
