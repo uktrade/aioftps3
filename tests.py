@@ -393,6 +393,84 @@ class TestAioFtpS3(unittest.TestCase):
         self.assertEqual(num_checked, 105906176)
         self.assertTrue(all_equal)
 
+    @async_test
+    async def test_curl_upload_file(self):
+        loop = await self.setup_manual()
+
+        def get_random_bytes(num_bytes):
+            return bytes(random.getrandbits(8) for _ in range(num_bytes))
+
+        random_bytes = get_random_bytes(100)
+        downloaded = b''
+
+        def on_incoming(incoming):
+            nonlocal downloaded
+            downloaded += incoming
+
+        def get_data(ftp):
+            ftp.retrbinary('RETR target.bin', on_incoming)
+
+        proc = await subprocess([
+            'curl', '--ftp-ssl', '-k', '--disable-epsv',
+            'ftp://my-user:' + get_password() + '@localhost:8021/target.bin',
+            '-T', '-',
+        ])
+        await proc.communicate(random_bytes)
+        await ftp_run(get_data, loop=loop, user='my-user', passwd=get_password())
+        self.assertEqual(downloaded, random_bytes)
+
+    @async_test
+    async def test_curl_download_file(self):
+        loop = await self.setup_manual()
+
+        def get_random_bytes(num_bytes):
+            return bytes(random.getrandbits(8) for _ in range(num_bytes))
+
+        random_bytes = get_random_bytes(100)
+
+        def random_file():
+            contents = (random_bytes for _ in range(0, 1))
+            return file(contents)
+
+        def stor(ftp):
+            ftp.storbinary('STOR my-target-file.bin', random_file())
+
+        await ftp_run(stor, loop=loop, user='my-user', passwd=get_password())
+
+        downloaded = b''
+
+        proc = await subprocess([
+            'curl', '--ftp-ssl', '-k', '--disable-epsv',
+            'ftp://my-user:' + get_password() + '@localhost:8021/my-target-file.bin',
+        ])
+        downloaded, _ = await proc.communicate()
+        self.assertEqual(downloaded, random_bytes)
+
+    @async_test
+    async def test_curl_list(self):
+        loop = await self.setup_manual()
+
+        def get_random_bytes(num_bytes):
+            return bytes(random.getrandbits(8) for _ in range(num_bytes))
+
+        random_bytes = get_random_bytes(100)
+
+        def random_file():
+            contents = (random_bytes for _ in range(0, 1))
+            return file(contents)
+
+        def stor(ftp):
+            ftp.storbinary('STOR my-target-file.bin', random_file())
+
+        await ftp_run(stor, loop=loop, user='my-user', passwd=get_password())
+
+        proc = await subprocess([
+            'curl', '--ftp-ssl', '-k', '--disable-epsv',
+            'ftp://my-user:' + get_password() + '@localhost:8021/',
+        ])
+        listing, _ = await proc.communicate()
+        self.assertIn(b'my-target-file.bin', listing)
+
 
 def file(generator):
     def read(_):
@@ -425,6 +503,15 @@ async def ftp_run(func, *args, loop, user, passwd):
             return func(ftp, *args)
 
     return await loop.run_in_executor(None, task)
+
+
+async def subprocess(command):
+    return await asyncio.create_subprocess_exec(
+        *command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        stdin=asyncio.subprocess.PIPE,
+    )
 
 
 def env():
