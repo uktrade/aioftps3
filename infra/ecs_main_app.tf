@@ -199,8 +199,6 @@ data "template_file" "app_container_definitions" {
 
     ftp_data_cidr_to_domains__1__cidr = "${aws_subnet.public.cidr_block}"
     ftp_data_cidr_to_domains__1__domain = "${aws_route53_record.ftps3_public.name}"
-    ftp_data_cidr_to_domains__2__cidr = "${data.aws_vpc_peering_connection.private_subnet.cidr_block}"
-    ftp_data_cidr_to_domains__2__domain = "${var.app_internal_host}"
 
     healthcheck_port = "${var.healthcheck_port}"
   }

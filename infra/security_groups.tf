@@ -28,7 +28,6 @@ resource "aws_security_group_rule" "app_service_ingress_command_from_nlbs" {
   security_group_id = "${aws_security_group.app_service.id}"
   cidr_blocks       = [
     "${aws_subnet.public.cidr_block}",
-    "${data.aws_vpc_peering_connection.private_subnet.cidr_block}",
   ]
 
   type      = "ingress"
@@ -43,7 +42,6 @@ resource "aws_security_group_rule" "app_service_ingress_data_from_nlbs" {
   security_group_id = "${aws_security_group.app_service.id}"
   cidr_blocks       = [
     "${aws_subnet.public.cidr_block}",
-    "${data.aws_vpc_peering_connection.private_subnet.cidr_block}",,
   ]
 
   type      = "ingress"

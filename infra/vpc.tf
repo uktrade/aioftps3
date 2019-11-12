@@ -16,9 +16,9 @@ data "aws_nat_gateway" "main" {
   id = "${var.nat_gateway_id}"
 }
 
-data "aws_vpc_peering_connection" "private_subnet" {
-  id = "${var.private_subnet_vpc_peering_connection_id}"
-}
+# data "aws_vpc_peering_connection" "private_subnet" {
+#   id = "${var.private_subnet_vpc_peering_connection_id}"
+# }
 
 data "aws_eip" "healthcheck_nat" {
   id = "${var.healthcheck_nat_eip_allocation_id}"
@@ -71,11 +71,11 @@ resource "aws_route_table" "app" {
   }
 }
 
-resource "aws_route" "vpc_peering_connection_app_subnet" {
-  route_table_id            = "${aws_route_table.app.id}"
-  vpc_peering_connection_id = "${data.aws_vpc_peering_connection.private_subnet.id}"
-  destination_cidr_block    = "${data.aws_vpc_peering_connection.private_subnet.cidr_block}"
-}
+# resource "aws_route" "vpc_peering_connection_app_subnet" {
+#   route_table_id            = "${aws_route_table.app.id}"
+#   vpc_peering_connection_id = "${data.aws_vpc_peering_connection.private_subnet.id}"
+#   destination_cidr_block    = "${data.aws_vpc_peering_connection.private_subnet.cidr_block}"
+# }
 
 resource "aws_route" "app_nat_gateway_ipv4" {
   route_table_id         = "${aws_route_table.app.id}"
