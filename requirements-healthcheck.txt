@@ -4,10 +4,21 @@
 #
 #    pip-compile --output-file requirements-healthcheck.txt requirements-healthcheck.in
 #
-aiohttp==3.4.4
-async-timeout==3.0.1      # via aiohttp
-attrs==18.2.0             # via aiohttp
-chardet==3.0.4            # via aiohttp
-idna==2.7                 # via yarl
-multidict==4.4.2          # via aiohttp, yarl
-yarl==1.2.6               # via aiohttp
+aiohttp==3.7.4
+    # via -r requirements-healthcheck.in
+async-timeout==3.0.1
+    # via aiohttp
+attrs==18.2.0
+    # via aiohttp
+chardet==3.0.4
+    # via aiohttp
+idna==2.7
+    # via yarl
+multidict==5.1.0
+    # via
+    #   aiohttp
+    #   yarl
+typing-extensions==3.10.0.2
+    # via aiohttp
+yarl==1.2.6
+    # via aiohttp
