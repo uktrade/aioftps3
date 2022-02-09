@@ -3,7 +3,7 @@ jobs:
   build:
     docker:
       - image: python:3.7.1
-      - image: quay.io/uktrade/ftps-s3-minio:latest
+      - image: gcr.io/sre-docker-registry/github.com/uktrade/aioftps3:latest 
         environment:
           MINIO_ACCESS_KEY: AKIAIOSFODNN7EXAMPLE
           MINIO_SECRET_KEY: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
