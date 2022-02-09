@@ -11,7 +11,7 @@ RUN \
     apk add --no-cache \
         build-base==0.5-r1 && \
     apk add --no-cache \
-        openssl=1.0.2t-r0 \
+        openssl \
         tini=0.18.0-r0 && \
     python3 -m ensurepip && \
     pip3 install pip==18.01 && \
