@@ -12,6 +12,8 @@ async-timeout==3.0.1
     # via aiohttp
 attrs==18.2.0
     # via aiohttp
+cffi==1.15.1
+    # via pycares
 chardet==3.0.4
     # via aiohttp
 fifolock==0.0.18
@@ -22,8 +24,10 @@ multidict==5.1.0
     # via
     #   aiohttp
     #   yarl
-pycares==2.3.0
+pycares==4.2.0
     # via aiodns
+pycparser==2.21
+    # via cffi
 typing-extensions==3.10.0.2
     # via aiohttp
 yarl==1.2.6
