@@ -447,7 +447,7 @@ async def _multipart_upload_start(logger, context, path):
 
 async def _multipart_upload_part(logger, context, path, upload_id, part_number, part_length,
                                  part_chunks, part_payload_hash):
-    async def aiter(iterable):
+    async def aiter(iterable):  # pylint: disable=redefined-builtin
         for item in iterable:
             await asyncio.sleep(0)
             yield item
